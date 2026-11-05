@@ -106,6 +106,8 @@ public static class PrototypeBuilder
         Tile platformTile = CreateTile(platformSprite, "Platform");
         WeaponData weapon = CreateWeapon();
         Bullet bulletPrefab = CreateBulletPrefab(bulletSprite);
+        EnemyBullet enemyBulletPrefab = CreateEnemyBulletPrefab(PixelArt.EnemyBulletSprite());
+        Sprite enemyBarSprite = PixelArt.SolidSprite("enemy_bar", Color.white);
 
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -153,9 +155,10 @@ public static class PrototypeBuilder
         // Plain tilemap colliders: the composite path did not produce working colliders on the phone build.
         groundGo.AddComponent<TilemapCollider2D>();
 
-        for (int x = -40; x < 96; x++)
+        for (int x = -40; x < 200; x++)
         {
-            bool pit = (x >= 22 && x <= 24) || (x >= 56 && x <= 59);
+            bool pit = (x >= 22 && x <= 24) || (x >= 56 && x <= 58)
+                || (x >= 92 && x <= 94) || (x >= 124 && x <= 126) || (x >= 158 && x <= 160);
             if (pit) continue;
             int variant = (x * 92821 + 7) & 0x7fffffff;
             tilemap.SetTile(new Vector3Int(x, 0, 0), groundTiles[variant % groundTiles.Length]);
@@ -169,9 +172,17 @@ public static class PrototypeBuilder
         PaintRow(tilemap, platformTile, 8, 12, 3);
         PaintRow(tilemap, platformTile, 30, 34, 4);
         PaintRow(tilemap, platformTile, 42, 46, 2);
+        PaintRow(tilemap, platformTile, 64, 68, 3);
+        PaintRow(tilemap, platformTile, 84, 88, 2);
+        PaintRow(tilemap, platformTile, 100, 104, 3);
+        PaintRow(tilemap, platformTile, 132, 136, 2);
+        PaintRow(tilemap, platformTile, 136, 140, 3);
+        PaintRow(tilemap, platformTile, 170, 174, 3);
+        PaintRow(tilemap, platformTile, 176, 180, 2);
 
         CreateDecorations();
         CreateDepthShade();
+        CreatePitBacking();
 
         // Player: run, jump, gun with muzzle and ground check.
         GameObject playerGo = new GameObject("Player");
@@ -186,6 +197,8 @@ public static class PrototypeBuilder
         playerCollider.size = new Vector2(0.8f, 1.4f);
         PlayerController controller = playerGo.AddComponent<PlayerController>();
         controller.jumpSpeed = 14f;
+        controller.maxHealth = 5;
+        controller.invulnerableTime = 1.2f;
         CharacterAnimator playerAnimator = playerGo.AddComponent<CharacterAnimator>();
         playerAnimator.frames = playerFrames;
         playerAnimator.fps = 8f;
@@ -209,22 +222,46 @@ public static class PrototypeBuilder
 
         // Ground top is y=1.0; enemy sprite is 22 px (1.375 units) tall, so its centre sits 0.6875 above the floor.
         // Platform top is y=4.0 for the first platform.
-        CreateEnemy(enemyFrames, new Vector3(14f, 1.69f, 0f), 2f);
-        CreateEnemy(enemyFrames, new Vector3(28f, 1.69f, 0f), 3f);
-        CreateEnemy(enemyFrames, new Vector3(40f, 1.69f, 0f), 2f);
-        CreateEnemy(enemyFrames, new Vector3(62f, 1.69f, 0f), 3f);
-        CreateEnemy(enemyFrames, new Vector3(76f, 1.69f, 0f), 2f);
-        CreateEnemy(enemyFrames, new Vector3(10f, 4.69f, 0f), 1.5f);
+        // Ground patrols (y=1.69). Patrol ranges are kept clear of the pits.
+        CreateEnemy(enemyFrames, new Vector3(14f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(28f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(40f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(50f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(62f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(76f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(88f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(100f, 1.69f, 0f), 3f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(108f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(114f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(130f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(144f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(152f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(164f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(180f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(184f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
+
+        // High platforms (row 3, top y=4.0).
+        CreateEnemy(enemyFrames, new Vector3(10f, 4.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(66f, 4.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(102f, 4.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(138f, 4.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(172f, 4.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
+
+        // Low platforms (row 2, top y=3.0).
+        CreateEnemy(enemyFrames, new Vector3(44f, 3.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(86f, 3.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(134f, 3.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
+        CreateEnemy(enemyFrames, new Vector3(178f, 3.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
 
         CameraFollow2D follow = cam.gameObject.AddComponent<CameraFollow2D>();
         follow.target = playerGo.transform;
         follow.minX = -20f;
-        follow.maxX = 80f;
+        follow.maxX = 180f;
         follow.maxY = 5f;
 
         // Invisible walls keep the player inside the painted level.
         CreateInvisibleWall(-19f, 8f);
-        CreateInvisibleWall(88f, 8f);
+        CreateInvisibleWall(188f, 8f);
 
         // Touch UI: Screen Space Overlay canvas, safe-area panel, joystick, two buttons, FPS label.
         GameObject canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
@@ -264,6 +301,62 @@ public static class PrototypeBuilder
         fpsCounter.worldCamera = cam;
         fpsCounter.player = playerGo.transform;
         fpsCounter.showDebugInfo = false;
+
+        // Player health bar, top-left under the FPS readout: portrait plus a red fill that shrinks left to right.
+        GameObject healthGo = new GameObject("HealthBar", typeof(RectTransform), typeof(PlayerHealthBar));
+        healthGo.transform.SetParent(safeGo.transform, false);
+        RectTransform healthRect = (RectTransform)healthGo.transform;
+        healthRect.anchorMin = new Vector2(0f, 1f);
+        healthRect.anchorMax = new Vector2(0f, 1f);
+        healthRect.pivot = new Vector2(0f, 1f);
+        healthRect.anchoredPosition = new Vector2(24f, -86f);
+        healthRect.sizeDelta = new Vector2(300f, 44f);
+
+        GameObject portraitGo = new GameObject("Portrait", typeof(RectTransform), typeof(Image));
+        portraitGo.transform.SetParent(healthGo.transform, false);
+        RectTransform portraitRect = (RectTransform)portraitGo.transform;
+        portraitRect.anchorMin = Vector2.zero;
+        portraitRect.anchorMax = Vector2.zero;
+        portraitRect.pivot = Vector2.zero;
+        portraitRect.anchoredPosition = Vector2.zero;
+        portraitRect.sizeDelta = new Vector2(36f, 44f);
+        Image portraitImage = portraitGo.GetComponent<Image>();
+        portraitImage.sprite = playerFrames[0];
+        portraitImage.preserveAspect = true;
+        portraitImage.raycastTarget = false;
+
+        GameObject barBgGo = new GameObject("BarBackground", typeof(RectTransform), typeof(Image));
+        barBgGo.transform.SetParent(healthGo.transform, false);
+        RectTransform barBgRect = (RectTransform)barBgGo.transform;
+        barBgRect.anchorMin = new Vector2(0f, 0f);
+        barBgRect.anchorMax = new Vector2(0f, 1f);
+        barBgRect.pivot = new Vector2(0f, 0.5f);
+        barBgRect.anchoredPosition = new Vector2(44f, 0f);
+        barBgRect.sizeDelta = new Vector2(248f, -14f);
+        Image barBgImage = barBgGo.GetComponent<Image>();
+        barBgImage.sprite = uiButton;
+        barBgImage.color = new Color(0.05f, 0.04f, 0.08f, 0.6f);
+        barBgImage.raycastTarget = false;
+
+        GameObject healthFillGo = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+        healthFillGo.transform.SetParent(barBgGo.transform, false);
+        RectTransform healthFillRect = (RectTransform)healthFillGo.transform;
+        healthFillRect.anchorMin = Vector2.zero;
+        healthFillRect.anchorMax = Vector2.one;
+        healthFillRect.offsetMin = new Vector2(5f, 5f);
+        healthFillRect.offsetMax = new Vector2(-5f, -5f);
+        Image healthFillImage = healthFillGo.GetComponent<Image>();
+        healthFillImage.sprite = uiButton;
+        healthFillImage.color = new Color(0.92f, 0.28f, 0.20f, 1f);
+        healthFillImage.type = Image.Type.Filled;
+        healthFillImage.fillMethod = Image.FillMethod.Horizontal;
+        healthFillImage.fillOrigin = (int)Image.OriginHorizontal.Left;
+        healthFillImage.fillAmount = 1f;
+        healthFillImage.raycastTarget = false;
+
+        PlayerHealthBar healthBar = healthGo.GetComponent<PlayerHealthBar>();
+        healthBar.player = controller;
+        healthBar.fill = healthFillImage;
 
         GameObject stickGo = new GameObject("Stick", typeof(RectTransform), typeof(Image), typeof(OnScreenStick), typeof(DpSize));
         stickGo.transform.SetParent(safeGo.transform, false);
@@ -463,7 +556,8 @@ public static class PrototypeBuilder
         labelSize.offsetDp = new Vector2(0f, 14f);
     }
 
-    static void CreateEnemy(Sprite[] frames, Vector3 position, float patrol)
+    static void CreateEnemy(Sprite[] frames, Vector3 position, float patrol,
+        EnemyBullet bulletPrefab, Sprite barSprite)
     {
         GameObject go = new GameObject("Enemy");
         go.transform.position = position;
@@ -473,14 +567,43 @@ public static class PrototypeBuilder
         Rigidbody2D body = go.AddComponent<Rigidbody2D>();
         body.bodyType = RigidbodyType2D.Kinematic;
         BoxCollider2D collider = go.AddComponent<BoxCollider2D>();
-        // Covers the torso; the muzzle sits around y=1.6 when the player stands on the ground.
+        // Covers the torso; the sprite is 22 px tall, so the head is at y=0.6875.
         collider.size = new Vector2(0.9f, 1.1f);
         collider.offset = new Vector2(0f, 0.05f);
         Enemy enemy = go.AddComponent<Enemy>();
         enemy.patrolDistance = patrol;
+        enemy.maxHealth = 4;
+        enemy.bulletPrefab = bulletPrefab;
+        enemy.fireRange = 10f;
+        enemy.fireInterval = 2.6f;
         CharacterAnimator animator = go.AddComponent<CharacterAnimator>();
         animator.frames = frames;
         animator.fps = 6f;
+
+        GameObject muzzle = new GameObject("Muzzle");
+        muzzle.transform.SetParent(go.transform, false);
+        muzzle.transform.localPosition = new Vector3(0.4f, -0.02f, 0f);
+        enemy.muzzle = muzzle.transform;
+
+        // Health bar above the head. The solid sprite is 0.5 units, hence the 2x scales.
+        GameObject barBg = new GameObject("HealthBarBg");
+        barBg.transform.SetParent(go.transform, false);
+        barBg.transform.localPosition = new Vector3(0f, 0.82f, 0f);
+        barBg.transform.localScale = new Vector3(1.96f, 0.26f, 1f);
+        SpriteRenderer barBgRenderer = barBg.AddComponent<SpriteRenderer>();
+        barBgRenderer.sprite = barSprite;
+        barBgRenderer.color = new Color(0.05f, 0.04f, 0.06f, 0.75f);
+        barBgRenderer.sortingOrder = 12;
+
+        GameObject barFill = new GameObject("HealthBarFill");
+        barFill.transform.SetParent(go.transform, false);
+        barFill.transform.localPosition = new Vector3(0f, 0.82f, 0f);
+        barFill.transform.localScale = new Vector3(1.8f, 0.18f, 1f);
+        SpriteRenderer barFillRenderer = barFill.AddComponent<SpriteRenderer>();
+        barFillRenderer.sprite = barSprite;
+        barFillRenderer.color = new Color(0.93f, 0.30f, 0.22f, 1f);
+        barFillRenderer.sortingOrder = 13;
+        enemy.healthFill = barFill.transform;
     }
 
     // Static collider with no renderer: blocks the player at the ends of the level.
@@ -512,7 +635,7 @@ public static class PrototypeBuilder
         ParallaxLayer cloudParallax = cloudsGo.AddComponent<ParallaxLayer>();
         cloudParallax.cameraTransform = cam.transform;
         cloudParallax.factor = 0.92f;
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 18; i++)
         {
             GameObject cloud = new GameObject("Cloud" + i);
             cloud.transform.SetParent(cloudsGo.transform, false);
@@ -528,7 +651,7 @@ public static class PrototypeBuilder
 
         Sprite mountainSprite = PixelArt.MountainSprite();
         GameObject mountainsGo = new GameObject("Mountains");
-        mountainsGo.transform.position = new Vector3(40f, 3f, 0f);
+        mountainsGo.transform.position = new Vector3(20f, 3f, 0f);
         SpriteRenderer mountainRenderer = mountainsGo.AddComponent<SpriteRenderer>();
         mountainRenderer.sprite = mountainSprite;
         mountainRenderer.sortingOrder = -960;
@@ -538,7 +661,7 @@ public static class PrototypeBuilder
 
         Sprite treelineSprite = PixelArt.TreelineSprite();
         GameObject treelineGo = new GameObject("Treeline");
-        treelineGo.transform.position = new Vector3(40f, 3.3f, 0f);
+        treelineGo.transform.position = new Vector3(20f, 3.3f, 0f);
         SpriteRenderer treelineRenderer = treelineGo.AddComponent<SpriteRenderer>();
         treelineRenderer.sprite = treelineSprite;
         treelineRenderer.sortingOrder = -940;
@@ -553,7 +676,22 @@ public static class PrototypeBuilder
         SpriteRenderer vignetteRenderer = vignetteGo.AddComponent<SpriteRenderer>();
         vignetteRenderer.sprite = vignetteSprite;
         vignetteRenderer.sortingOrder = 1000;
-        vignetteGo.transform.localScale = new Vector3(1.8f, 1.8f, 1f);
+        vignetteGo.transform.localScale = new Vector3(2.2f, 2.2f, 1f);
+    }
+
+    // Dark quad behind the tilemap: pit shafts otherwise show the camera-space sky as a bright column.
+    static void CreatePitBacking()
+    {
+        Sprite solid = PixelArt.SolidSprite("pit_backing", new Color(0.10f, 0.07f, 0.05f, 1f));
+        GameObject go = new GameObject("PitBacking");
+        go.transform.position = new Vector3(80f, -2.5f, 0f);
+        SpriteRenderer renderer = go.AddComponent<SpriteRenderer>();
+        renderer.sprite = solid;
+        renderer.sortingOrder = -5;
+        go.transform.localScale = new Vector3(
+            240f / (solid.rect.width / 16f),
+            7f / (solid.rect.height / 16f),
+            1f);
     }
 
     // Darkens the dirt towards the bottom of the screen; one gradient quad avoids per-tile banding.
@@ -561,12 +699,12 @@ public static class PrototypeBuilder
     {
         Sprite shade = PixelArt.DepthShadeSprite();
         GameObject go = new GameObject("DepthShade");
-        go.transform.position = new Vector3(28f, -1.5f, 0f);
+        go.transform.position = new Vector3(80f, -1.5f, 0f);
         SpriteRenderer renderer = go.AddComponent<SpriteRenderer>();
         renderer.sprite = shade;
         renderer.sortingOrder = 1;
         go.transform.localScale = new Vector3(
-            136f / (shade.rect.width / 16f),
+            240f / (shade.rect.width / 16f),
             5f / (shade.rect.height / 16f),
             1f);
     }
@@ -582,9 +720,11 @@ public static class PrototypeBuilder
         System.Random rng = new System.Random(2024);
 
         float x = -38f;
-        while (x < 94f)
+        while (x < 194f)
         {
-            bool pit = (x >= 21.5f && x <= 25.5f) || (x >= 55.5f && x <= 60.5f);
+            bool pit = (x >= 21.5f && x <= 25.5f) || (x >= 55.5f && x <= 59.5f)
+                || (x >= 91.5f && x <= 95.5f) || (x >= 123.5f && x <= 127.5f)
+                || (x >= 157.5f && x <= 161.5f);
             if (!pit)
             {
                 int roll = rng.Next(100);
@@ -640,6 +780,27 @@ public static class PrototypeBuilder
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
         UnityEngine.Object.DestroyImmediate(go);
         return prefab.GetComponent<Bullet>();
+    }
+
+    static EnemyBullet CreateEnemyBulletPrefab(Sprite sprite)
+    {
+        GameObject go = new GameObject("EnemyBullet");
+        SpriteRenderer renderer = go.AddComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = 11;
+        Rigidbody2D body = go.AddComponent<Rigidbody2D>();
+        body.gravityScale = 0f;
+        body.bodyType = RigidbodyType2D.Dynamic;
+        body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        BoxCollider2D collider = go.AddComponent<BoxCollider2D>();
+        collider.size = new Vector2(0.3f, 0.15f);
+        collider.isTrigger = true;
+        go.AddComponent<EnemyBullet>();
+
+        string path = PrefabDir + "/EnemyBullet.prefab";
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
+        UnityEngine.Object.DestroyImmediate(go);
+        return prefab.GetComponent<EnemyBullet>();
     }
 
     // Read-only diagnostic: open the stage and report every sprite reference and the GUID the editor assigns to its PNG.

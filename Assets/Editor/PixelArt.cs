@@ -190,6 +190,25 @@ public static class PixelArt
         return FromMap("bullet", rows, palette);
     }
 
+    // Enemy projectile: same silhouette as the player bullet, red palette so factions read at a glance.
+    public static Sprite EnemyBulletSprite()
+    {
+        string[] rows =
+        {
+            "..oooo..",
+            ".orrrro.",
+            ".orWWro.",
+            "..oooo.."
+        };
+        Dictionary<char, Color> palette = new Dictionary<char, Color>
+        {
+            { 'o', Hex("#7A1B10") },
+            { 'r', Hex("#E8452C") },
+            { 'W', Hex("#FFD9B0") }
+        };
+        return FromMap("enemy_bullet", rows, palette);
+    }
+
     // ------------------------------------------------------------------ terrain
 
     public static Sprite[] GroundTops()
@@ -419,7 +438,7 @@ public static class PixelArt
 
     public static Sprite MountainSprite()
     {
-        int w = 2048;
+        int w = 4096;
         int h = 128;
         Texture2D t = NewTex(w, h);
 
@@ -467,13 +486,13 @@ public static class PixelArt
 
     public static Sprite TreelineSprite()
     {
-        int w = 2048;
+        int w = 4096;
         int h = 80;
         Texture2D t = NewTex(w, h);
         System.Random rng = new System.Random(77);
 
         float[] canopy = new float[w];
-        for (int i = 0; i < 360; i++)
+        for (int i = 0; i < 720; i++)
         {
             int cx = rng.Next(-16, w + 16);
             float rx = 4f + (float)rng.NextDouble() * 7f;
@@ -600,6 +619,9 @@ public static class PixelArt
                 float d = Mathf.Sqrt(u * u * 0.8f + v * v * 0.9f);
                 float f = Mathf.Clamp01((d - 0.55f) / 0.7f);
                 f = f * f * (3f - 2f * f);
+                // Fade out at the texture border, otherwise the sprite edge shows as a hard line.
+                float edge = Mathf.Min(Mathf.Min(u + 1f, 1f - u), Mathf.Min(v + 1f, 1f - v));
+                f *= Mathf.Clamp01(edge / 0.12f);
                 t.SetPixel(x, y, new Color(0.02f, 0.03f, 0.06f, f * 0.38f));
             }
         }
@@ -817,6 +839,17 @@ public static class PixelArt
         return Import("ui_bullet", FromMapRows(rows, palette), true, 100);
     }
 
+    // Flat colour used behind the level; shows through pit shafts so they read as dark holes.
+    public static Sprite SolidSprite(string name, Color color)
+    {
+        const int size = 8;
+        Texture2D t = NewTex(size, size);
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+                t.SetPixel(x, y, color);
+        return Import(name, t, true, Ppu);
+    }
+
     // Vertical darkening laid over the underground strip so the dirt fades towards the bottom.
     public static Sprite DepthShadeSprite()
     {
@@ -852,6 +885,7 @@ public static class PixelArt
             else if (tex.width >= 1024) scale = 0.7f;
             else if (tex.width >= 128) scale = 3f;
             else scale = 6f;
+            scale = Mathf.Min(scale, (maxWidth - 2f * pad) / tex.width);
             items.Add(new KeyValuePair<Texture2D, float>(tex, scale));
         }
 
@@ -1001,6 +1035,8 @@ public static class PixelArt
         importer.filterMode = point ? FilterMode.Point : FilterMode.Bilinear;
         importer.textureCompression = TextureImporterCompression.Uncompressed;
         importer.mipmapEnabled = false;
+        // Unity defaults to 2048; the wide background strips are 4096 so they must not be downscaled.
+        importer.maxTextureSize = 8192;
         importer.SaveAndReimport();
 
         return AssetDatabase.LoadAssetAtPath<Sprite>(path);

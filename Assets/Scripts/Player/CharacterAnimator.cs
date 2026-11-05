@@ -7,6 +7,9 @@ public class CharacterAnimator : MonoBehaviour
 {
     public Sprite[] frames;
     public float fps = 8f;
+    [Tooltip("Enemies set this while aiming so the sprite faces the target instead of the walk direction.")]
+    public bool faceDirection;
+    public bool faceRight = true;
 
     SpriteRenderer renderer;
     Vector3 lastPosition;
@@ -27,7 +30,8 @@ public class CharacterAnimator : MonoBehaviour
         float dx = position.x - lastPosition.x;
         lastPosition = position;
 
-        if (Mathf.Abs(dx) > 0.0005f) renderer.flipX = dx < 0f;
+        if (faceDirection) renderer.flipX = !faceRight;
+        else if (Mathf.Abs(dx) > 0.0005f) renderer.flipX = dx < 0f;
 
         bool moving = Mathf.Abs(dx) > 0.0015f;
         int target = 0;
