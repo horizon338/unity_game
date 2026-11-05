@@ -11,6 +11,9 @@ public static class InputBridge
     public static bool OnScreenFireHeld;
     public static bool OnScreenJumpDown;
 
+    // Auto-fire toggled by the AUTO button. When off, the gun fires only while FIRE is held.
+    public static bool AutoFire;
+
     // Movement in [-1, 1] on both axes.
     public static Vector2 Move
     {

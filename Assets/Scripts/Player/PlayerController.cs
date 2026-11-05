@@ -16,8 +16,8 @@ public class PlayerController : MonoBehaviour
 
     [Header("Combat")]
     public Gun gun;
-    [Tooltip("Keep firing without holding the fire button.")]
-    public bool autoFire = true;
+    public Transform muzzle;
+    // Auto-fire is controlled by the AUTO button (InputBridge.AutoFire); FIRE fires while held.
 
     [Header("Safety")]
     [Tooltip("Respawn when the player falls below this height.")]
@@ -43,12 +43,20 @@ public class PlayerController : MonoBehaviour
         Vector2 move = InputBridge.Move;
         if (Mathf.Abs(move.x) > 0.1f) facingRight = move.x > 0f;
 
+        // Keep the muzzle at the gun tip of the sprite, mirrored while facing left.
+        if (muzzle != null)
+        {
+            Vector3 p = muzzle.localPosition;
+            p.x = Mathf.Abs(p.x) * (facingRight ? 1f : -1f);
+            muzzle.localPosition = p;
+        }
+
         if (InputBridge.ConsumeJumpPressed() && grounded)
         {
             jumpRequested = true;
         }
 
-        if (gun != null && (autoFire || InputBridge.FireHeld))
+        if (gun != null && (InputBridge.AutoFire || InputBridge.FireHeld))
         {
             gun.TryFire(AimDirection(move), facingRight);
         }
