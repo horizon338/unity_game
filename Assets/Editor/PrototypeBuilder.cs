@@ -22,6 +22,7 @@ public static class PrototypeBuilder
     const string TileDir = "Assets/Art/Tiles";
     const string PrefabDir = "Assets/Prefabs";
     const string DataDir = "Assets/Data";
+    const string MainMenuPath = "Assets/Scenes/MainMenu.unity";
     const string Stage1Path = "Assets/Scenes/Stage01.unity";
     const string Stage2Path = "Assets/Scenes/Stage02.unity";
     const string Stage3Path = "Assets/Scenes/Stage03.unity";
@@ -41,6 +42,7 @@ public static class PrototypeBuilder
         public Sprite muzzleFlashSprite;
         public SpriteBurst deathBurstPrefab;
         public Font font;
+        public Font cjkFont;
         public Sprite uiCircle;
         public Sprite uiRing;
         public Sprite uiKnob;
@@ -183,6 +185,7 @@ public static class PrototypeBuilder
 
         EditorBuildSettings.scenes = new[]
         {
+            new EditorBuildSettingsScene(MainMenuPath, true),
             new EditorBuildSettingsScene(Stage1Path, true),
             new EditorBuildSettingsScene(Stage2Path, true),
             new EditorBuildSettingsScene(Stage3Path, true)
@@ -211,6 +214,7 @@ public static class PrototypeBuilder
             muzzleFlashSprite = PixelArt.MuzzleFlashSprite(),
             deathBurstPrefab = CreateBurstPrefab(),
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"),
+            cjkFont = LoadCjkFont(),
             uiCircle = PixelArt.UiCircle("ui_circle", 256),
             uiRing = PixelArt.UiRing("ui_ring", 256, 7f),
             uiKnob = PixelArt.UiCircle("ui_knob", 128),
@@ -222,6 +226,7 @@ public static class PrototypeBuilder
         BuildLevel(Stage1Spec(shared), shared);
         BuildLevel(Stage2Spec(shared), shared);
         BuildLevel(Stage3Spec(shared), shared);
+        BuildMainMenu(shared);
 
         PixelArt.WritePreview();
     }
@@ -691,7 +696,7 @@ public static class PrototypeBuilder
 
         BuildPlayerOptions options = new BuildPlayerOptions
         {
-            scenes = new[] { Stage1Path, Stage2Path, Stage3Path },
+            scenes = new[] { MainMenuPath, Stage1Path, Stage2Path, Stage3Path },
             locationPathName = outputPath,
             target = BuildTarget.Android,
             options = development
@@ -878,35 +883,48 @@ public static class PrototypeBuilder
             new Color(0.66f, 0.19f, 0.14f, 0.72f), new Color(0.86f, 0.34f, 0.23f, 0.42f),
             new Vector2(-170f, 68f), 92f, 46f, 19f, 14f);
 
-        // AUTO toggle, top-right: tap to switch auto-fire on or off.
-        GameObject autoGo = new GameObject("AutoFireToggle", typeof(RectTransform), typeof(Image), typeof(OnScreenAutoFireToggle), typeof(DpSize));
-        autoGo.transform.SetParent(safeGo.transform, false);
-        RectTransform autoRect = (RectTransform)autoGo.transform;
-        autoRect.anchorMin = new Vector2(1f, 1f);
-        autoRect.anchorMax = new Vector2(1f, 1f);
-        autoRect.pivot = new Vector2(0.5f, 0.5f);
-        autoRect.anchoredPosition = Vector2.zero;
-        Image autoImage = autoGo.GetComponent<Image>();
-        autoImage.sprite = shared.uiButton;
-        autoImage.color = new Color(1f, 1f, 1f, 0.28f);
-        DpSize autoSize = autoGo.GetComponent<DpSize>();
-        autoSize.canvas = canvas;
-        autoSize.widthDp = 122f;
-        autoSize.heightDp = 58f;
-        autoSize.offsetDp = new Vector2(-78f, -50f);
+        // Pause button, top-right (replaces the old AUTO toggle).
+        GameObject pauseGo = new GameObject("PauseButton", typeof(RectTransform), typeof(Image), typeof(Button), typeof(DpSize));
+        pauseGo.transform.SetParent(safeGo.transform, false);
+        RectTransform pauseRect = (RectTransform)pauseGo.transform;
+        pauseRect.anchorMin = new Vector2(1f, 1f);
+        pauseRect.anchorMax = new Vector2(1f, 1f);
+        pauseRect.pivot = new Vector2(0.5f, 0.5f);
+        pauseRect.anchoredPosition = Vector2.zero;
+        Image pauseImage = pauseGo.GetComponent<Image>();
+        pauseImage.sprite = shared.uiButton;
+        pauseImage.color = new Color(1f, 1f, 1f, 0.28f);
+        Button pauseButton = pauseGo.GetComponent<Button>();
+        pauseButton.targetGraphic = pauseImage;
+        DpSize pauseSize = pauseGo.GetComponent<DpSize>();
+        pauseSize.canvas = canvas;
+        pauseSize.widthDp = 132f;
+        pauseSize.heightDp = 58f;
+        pauseSize.offsetDp = new Vector2(-84f, -50f);
 
-        GameObject autoLabelGo = new GameObject("Label", typeof(RectTransform), typeof(Text));
-        autoLabelGo.transform.SetParent(autoGo.transform, false);
-        StretchFull((RectTransform)autoLabelGo.transform);
-        Text autoText = autoLabelGo.GetComponent<Text>();
-        autoText.font = font;
-        autoText.fontSize = 25;
-        autoText.alignment = TextAnchor.MiddleCenter;
-        autoText.color = Color.white;
-        autoText.raycastTarget = false;
-        OnScreenAutoFireToggle autoToggle = autoGo.GetComponent<OnScreenAutoFireToggle>();
-        autoToggle.label = autoText;
-        autoToggle.background = autoImage;
+        GameObject pauseLabelGo = new GameObject("Label", typeof(RectTransform), typeof(Text));
+        pauseLabelGo.transform.SetParent(pauseGo.transform, false);
+        StretchFull((RectTransform)pauseLabelGo.transform);
+        Text pauseText = pauseLabelGo.GetComponent<Text>();
+        pauseText.font = shared.cjkFont;
+        pauseText.text = "暂停";
+        pauseText.fontSize = 26;
+        pauseText.alignment = TextAnchor.MiddleCenter;
+        pauseText.color = Color.white;
+        pauseText.raycastTarget = false;
+
+        // Full-screen pause overlay, hidden until the pause button is tapped.
+        Button resumeButton;
+        Button homeButton;
+        GameObject pausePanel = BuildPausePanel(safeGo.transform, shared, out resumeButton, out homeButton);
+
+        GameObject pauseUiGo = new GameObject("PauseUI", typeof(PauseMenuUI));
+        pauseUiGo.transform.SetParent(safeGo.transform, false);
+        PauseMenuUI pauseUi = pauseUiGo.GetComponent<PauseMenuUI>();
+        pauseUi.pauseButton = pauseButton;
+        pauseUi.panel = pausePanel;
+        pauseUi.resumeButton = resumeButton;
+        pauseUi.homeButton = homeButton;
 
         return safeGo;
     }
@@ -958,6 +976,289 @@ public static class PrototypeBuilder
 
         go.SetActive(false);
         return go;
+    }
+
+    static Font LoadCjkFont()
+    {
+        const string path = "Assets/Fonts/NotoSansSC.otf";
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+        Font font = AssetDatabase.LoadAssetAtPath<Font>(path);
+        if (font == null) throw new Exception("CJK font not found at " + path);
+        return font;
+    }
+
+    static Text CreateMenuText(Transform parent, Font font, string content, int size, Color color,
+        Vector2 position, Vector2 sizeDelta, bool shadow = false,
+        TextAnchor alignment = TextAnchor.MiddleCenter)
+    {
+        GameObject go = new GameObject("Text", typeof(RectTransform), typeof(Text));
+        go.transform.SetParent(parent, false);
+        RectTransform rect = (RectTransform)go.transform;
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = sizeDelta;
+
+        Text text = go.GetComponent<Text>();
+        text.font = font;
+        text.text = content;
+        text.fontSize = size;
+        text.color = color;
+        text.alignment = alignment;
+        text.raycastTarget = false;
+
+        if (shadow)
+        {
+            Shadow sh = go.AddComponent<Shadow>();
+            sh.effectColor = new Color(0f, 0f, 0f, 0.75f);
+            sh.effectDistance = new Vector2(3f, -3f);
+        }
+
+        return text;
+    }
+
+    static Button CreateMenuButton(Transform parent, Font font, Sprite buttonSprite, string label,
+        Vector2 position, Vector2 sizeDelta, Color background, int fontSize = 44)
+    {
+        GameObject go = new GameObject(label + "Button", typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+        RectTransform rect = (RectTransform)go.transform;
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = sizeDelta;
+
+        Image image = go.GetComponent<Image>();
+        image.sprite = buttonSprite;
+        image.color = background;
+
+        Button button = go.GetComponent<Button>();
+        button.targetGraphic = image;
+
+        GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(Text));
+        labelGo.transform.SetParent(go.transform, false);
+        RectTransform labelRect = (RectTransform)labelGo.transform;
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+        Text text = labelGo.GetComponent<Text>();
+        text.font = font;
+        text.text = label;
+        text.fontSize = fontSize;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = Color.white;
+        text.raycastTarget = false;
+
+        return button;
+    }
+
+    static Button CreateArrowButton(Transform parent, Shared shared, Vector2 position, float rotationZ)
+    {
+        GameObject go = new GameObject("ArrowButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+        RectTransform rect = (RectTransform)go.transform;
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(110f, 110f);
+
+        Image image = go.GetComponent<Image>();
+        image.sprite = shared.uiCircle;
+        image.color = new Color(1f, 1f, 1f, 0.14f);
+
+        Button button = go.GetComponent<Button>();
+        button.targetGraphic = image;
+
+        GameObject iconGo = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+        iconGo.transform.SetParent(go.transform, false);
+        RectTransform iconRect = (RectTransform)iconGo.transform;
+        iconRect.anchorMin = Vector2.zero;
+        iconRect.anchorMax = Vector2.one;
+        iconRect.offsetMin = new Vector2(34f, 34f);
+        iconRect.offsetMax = new Vector2(-34f, -34f);
+        iconRect.localRotation = Quaternion.Euler(0f, 0f, rotationZ);
+        Image iconImage = iconGo.GetComponent<Image>();
+        iconImage.sprite = shared.uiArrow;
+        iconImage.color = new Color(1f, 1f, 1f, 0.9f);
+        iconImage.raycastTarget = false;
+
+        return button;
+    }
+
+    // Pause overlay shared by every stage. Buttons are wired at runtime by PauseMenuUI.
+    static GameObject BuildPausePanel(Transform parent, Shared shared, out Button resumeButton, out Button homeButton)
+    {
+        GameObject panel = new GameObject("PausePanel", typeof(RectTransform), typeof(Image));
+        panel.transform.SetParent(parent, false);
+        StretchFull((RectTransform)panel.transform);
+        Image dim = panel.GetComponent<Image>();
+        dim.color = new Color(0.02f, 0.03f, 0.05f, 0.78f);
+
+        GameObject card = new GameObject("Card", typeof(RectTransform), typeof(Image));
+        card.transform.SetParent(panel.transform, false);
+        RectTransform cardRect = (RectTransform)card.transform;
+        cardRect.anchorMin = new Vector2(0.5f, 0.5f);
+        cardRect.anchorMax = new Vector2(0.5f, 0.5f);
+        cardRect.pivot = new Vector2(0.5f, 0.5f);
+        cardRect.anchoredPosition = Vector2.zero;
+        cardRect.sizeDelta = new Vector2(760f, 560f);
+        Image cardImage = card.GetComponent<Image>();
+        cardImage.sprite = shared.uiButton;
+        cardImage.color = new Color(0.10f, 0.13f, 0.19f, 0.98f);
+
+        CreateMenuText(card.transform, shared.cjkFont, "暂停", 72, Color.white,
+            new Vector2(0f, 190f), new Vector2(600f, 100f), true);
+
+        resumeButton = CreateMenuButton(card.transform, shared.cjkFont, shared.uiButton, "继续游戏",
+            new Vector2(0f, 10f), new Vector2(460f, 120f), new Color(0.24f, 0.52f, 0.30f, 0.96f));
+        homeButton = CreateMenuButton(card.transform, shared.cjkFont, shared.uiButton, "返回主页",
+            new Vector2(0f, -140f), new Vector2(460f, 120f), new Color(0.32f, 0.33f, 0.38f, 0.96f));
+
+        panel.SetActive(false);
+        return panel;
+    }
+
+    // Level select overlay: preview card, stage name, page dots and swipe/arrow navigation.
+    static GameObject BuildLevelSelectPanel(Transform parent, Shared shared)
+    {
+        Sprite[] previews =
+        {
+            PixelArt.LevelPreviewSprite(1),
+            PixelArt.LevelPreviewSprite(2),
+            PixelArt.LevelPreviewSprite(3)
+        };
+
+        GameObject panel = new GameObject("LevelSelectPanel", typeof(RectTransform), typeof(Image), typeof(LevelSelectUI));
+        panel.transform.SetParent(parent, false);
+        StretchFull((RectTransform)panel.transform);
+        Image dim = panel.GetComponent<Image>();
+        dim.color = new Color(0.03f, 0.04f, 0.07f, 0.95f);
+
+        CreateMenuText(panel.transform, shared.cjkFont, "选择关卡", 72, Color.white,
+            new Vector2(0f, 430f), new Vector2(1000f, 100f), true);
+
+        GameObject frameGo = new GameObject("CardFrame", typeof(RectTransform), typeof(Image));
+        frameGo.transform.SetParent(panel.transform, false);
+        RectTransform frameRect = (RectTransform)frameGo.transform;
+        frameRect.anchorMin = new Vector2(0.5f, 0.5f);
+        frameRect.anchorMax = new Vector2(0.5f, 0.5f);
+        frameRect.pivot = new Vector2(0.5f, 0.5f);
+        frameRect.anchoredPosition = new Vector2(0f, 90f);
+        frameRect.sizeDelta = new Vector2(900f, 506f);
+        Image frameImage = frameGo.GetComponent<Image>();
+        frameImage.sprite = shared.uiButton;
+        frameImage.color = new Color(0.12f, 0.15f, 0.22f, 1f);
+
+        GameObject previewGo = new GameObject("Preview", typeof(RectTransform), typeof(Image));
+        previewGo.transform.SetParent(frameGo.transform, false);
+        RectTransform previewRect = (RectTransform)previewGo.transform;
+        previewRect.anchorMin = Vector2.zero;
+        previewRect.anchorMax = Vector2.one;
+        previewRect.offsetMin = new Vector2(14f, 14f);
+        previewRect.offsetMax = new Vector2(-14f, -14f);
+        Image previewImage = previewGo.GetComponent<Image>();
+        previewImage.preserveAspect = true;
+        previewImage.color = Color.white;
+
+        Text nameText = CreateMenuText(panel.transform, shared.cjkFont, "", 56, new Color(1f, 0.92f, 0.7f),
+            new Vector2(0f, -240f), new Vector2(1200f, 80f), true);
+        Text pageText = CreateMenuText(panel.transform, shared.font, "", 32, new Color(1f, 1f, 1f, 0.75f),
+            new Vector2(0f, -305f), new Vector2(600f, 50f));
+        CreateMenuText(panel.transform, shared.cjkFont, "左右滑动切换关卡", 26, new Color(1f, 1f, 1f, 0.45f),
+            new Vector2(0f, -355f), new Vector2(900f, 50f));
+
+        Button prevButton = CreateArrowButton(panel.transform, shared, new Vector2(-560f, 90f), 90f);
+        Button nextButton = CreateArrowButton(panel.transform, shared, new Vector2(560f, 90f), -90f);
+
+        Button startButton = CreateMenuButton(panel.transform, shared.cjkFont, shared.uiButton, "开始",
+            new Vector2(0f, -440f), new Vector2(360f, 96f), new Color(0.72f, 0.40f, 0.16f, 0.96f), 40);
+        Button backButton = CreateMenuButton(panel.transform, shared.cjkFont, shared.uiButton, "返回",
+            new Vector2(-760f, 430f), new Vector2(220f, 84f), new Color(0.32f, 0.33f, 0.38f, 0.96f), 32);
+
+        LevelSelectUI ui = panel.GetComponent<LevelSelectUI>();
+        ui.panel = panel;
+        ui.previewImage = previewImage;
+        ui.levelName = nameText;
+        ui.pageLabel = pageText;
+        ui.prevButton = prevButton;
+        ui.nextButton = nextButton;
+        ui.startButton = startButton;
+        ui.backButton = backButton;
+        ui.sceneNames = new[] { "Stage01", "Stage02", "Stage03" };
+        ui.levelTitles = new[] { "STAGE 1 · 草地", "STAGE 2 · 雪地", "STAGE 3 · 沙漠" };
+        ui.previewSprites = previews;
+
+        panel.SetActive(false);
+        return panel;
+    }
+
+    // Main menu scene: title plus start / level select / quit, with the level select overlay.
+    static void BuildMainMenu(Shared shared)
+    {
+        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+        GameObject camGo = new GameObject("Main Camera", typeof(Camera));
+        camGo.tag = "MainCamera";
+        Camera cam = camGo.GetComponent<Camera>();
+        cam.orthographic = true;
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = new Color(0.05f, 0.07f, 0.11f);
+        cam.transform.position = new Vector3(0f, 0f, -10f);
+
+        GameObject canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        Canvas canvas = canvasGo.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        CanvasScaler scaler = canvasGo.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
+
+        GameObject safeGo = new GameObject("SafeArea", typeof(RectTransform), typeof(SafeAreaFitter));
+        safeGo.transform.SetParent(canvasGo.transform, false);
+        StretchFull((RectTransform)safeGo.transform);
+
+        GameObject bgGo = new GameObject("Background", typeof(RectTransform), typeof(Image));
+        bgGo.transform.SetParent(safeGo.transform, false);
+        StretchFull((RectTransform)bgGo.transform);
+        Image bg = bgGo.GetComponent<Image>();
+        bg.color = new Color(0.055f, 0.075f, 0.115f, 1f);
+        bg.raycastTarget = false;
+
+        CreateMenuText(safeGo.transform, shared.font, "CONTRA", 150, new Color(1f, 0.84f, 0.30f),
+            new Vector2(0f, 330f), new Vector2(1600f, 200f), true);
+        CreateMenuText(safeGo.transform, shared.cjkFont, "像素横版射击原型", 46, new Color(0.85f, 0.9f, 1f, 0.9f),
+            new Vector2(0f, 215f), new Vector2(1200f, 80f), true);
+
+        Button startButton = CreateMenuButton(safeGo.transform, shared.cjkFont, shared.uiButton, "开始游戏",
+            new Vector2(0f, 40f), new Vector2(500f, 120f), new Color(0.72f, 0.40f, 0.16f, 0.96f));
+        Button selectButton = CreateMenuButton(safeGo.transform, shared.cjkFont, shared.uiButton, "选择关卡",
+            new Vector2(0f, -110f), new Vector2(500f, 120f), new Color(0.20f, 0.38f, 0.58f, 0.96f));
+        Button quitButton = CreateMenuButton(safeGo.transform, shared.cjkFont, shared.uiButton, "退出游戏",
+            new Vector2(0f, -260f), new Vector2(500f, 120f), new Color(0.32f, 0.33f, 0.38f, 0.96f));
+
+        GameObject levelPanel = BuildLevelSelectPanel(safeGo.transform, shared);
+        LevelSelectUI levelSelect = levelPanel.GetComponent<LevelSelectUI>();
+
+        GameObject menuGo = new GameObject("Menu", typeof(MainMenuUI));
+        menuGo.transform.SetParent(canvasGo.transform, false);
+        MainMenuUI menu = menuGo.GetComponent<MainMenuUI>();
+        menu.startButton = startButton;
+        menu.levelSelectButton = selectButton;
+        menu.quitButton = quitButton;
+        menu.levelSelect = levelSelect;
+
+        CreateMenuText(safeGo.transform, shared.font, "v0.4 prototype", 26, new Color(1f, 1f, 1f, 0.35f),
+            new Vector2(0f, -460f), new Vector2(800f, 50f));
+
+        new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+
+        EditorSceneManager.SaveScene(scene, MainMenuPath);
+        AssetDatabase.SaveAssets();
+        Debug.Log("[PrototypeBuilder] built " + MainMenuPath);
     }
 
     static void CreateButton(Transform parent, Canvas canvas, Font font, Sprite circle, Sprite icon, string name,
@@ -1337,6 +1638,7 @@ public static class PrototypeBuilder
     {
         try
         {
+            VerifyLevel(MainMenuPath);
             VerifyLevel(Stage1Path);
             VerifyLevel(Stage2Path);
             VerifyLevel(Stage3Path);

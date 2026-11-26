@@ -87,9 +87,14 @@ public class PlayerController : MonoBehaviour
             jumpRequested = true;
         }
 
-        if (gun != null && (InputBridge.AutoFire || InputBridge.FireHeld))
+        if (gun != null)
         {
-            gun.TryFire(AimDirection(move), facingRight);
+            // Tap FIRE: exactly one shot. Hold FIRE: continuous fire at the weapon's rate.
+            bool firePressed = InputBridge.ConsumeFirePressed();
+            bool continuous = InputBridge.AutoFire
+                || InputBridge.KeyboardFireHeld
+                || (InputBridge.OnScreenFireHeld && InputBridge.OnScreenFireHoldTime >= 0.18f);
+            if (firePressed || continuous) gun.TryFire(AimDirection(move), facingRight);
         }
 
         if (transform.position.y < killHeight) Respawn();

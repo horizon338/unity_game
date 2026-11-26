@@ -2055,6 +2055,177 @@ public static class PixelArt
         return Import("dust", FromMapRows(rows, palette), false, Ppu);
     }
 
+    // ------------------------------------------------------------------ level previews
+
+    // Thumbnail card art for the level select menu: sky, hills, terrain and characters.
+    public static Sprite LevelPreviewSprite(int level)
+    {
+        const int w = 384;
+        const int h = 216;
+        Texture2D t = new Texture2D(w, h, TextureFormat.RGBA32, false);
+
+        Color horizon, low, mid, top, hillFar, hillNear;
+        Texture2D groundTile, fillTile, platformTile, enemyTex, playerTex, decoTex;
+        bool mesa;
+
+        switch (level)
+        {
+            case 2:
+                horizon = Hex("#F3E9EC");
+                low = Hex("#E2ECF5");
+                mid = Hex("#A9C8E4");
+                top = Hex("#4C7CB3");
+                hillFar = Hex("#C3D6E8");
+                hillNear = Hex("#9FBAD3");
+                groundTile = BuildSnowGroundTop(1202);
+                fillTile = BuildSnowFill(2202);
+                platformTile = BuildIcePlatform(3201);
+                enemyTex = FromMapRows(Combine(EnemyUpper, EnemyLegsA), SnowEnemyPalette());
+                playerTex = FromMapRows(Combine(PlayerUpper, PlayerLegsIdle), PlayerPalette());
+                decoTex = BuildSnowBush(6202);
+                mesa = false;
+                break;
+
+            case 3:
+                horizon = Hex("#FBE7C2");
+                low = Hex("#F4DDBE");
+                mid = Hex("#A9C8DE");
+                top = Hex("#3F79B4");
+                hillFar = Hex("#D6BD9C");
+                hillNear = Hex("#B8956D");
+                groundTile = BuildSandGroundTop(1402);
+                fillTile = BuildSandFill(2402);
+                platformTile = BuildSandstonePlatform(3401);
+                enemyTex = FromMapRows(Combine(EnemyUpper, EnemyLegsA), DesertEnemyPalette());
+                playerTex = FromMapRows(Combine(PlayerUpper, PlayerLegsIdle), PlayerPalette());
+                decoTex = BuildDryBush(6302);
+                mesa = true;
+                break;
+
+            default:
+                horizon = Hex("#F2E3BE");
+                low = Hex("#DCE9EA");
+                mid = Hex("#8FBFE4");
+                top = Hex("#2E63B2");
+                hillFar = Hex("#9DB8D0");
+                hillNear = Hex("#7897B5");
+                groundTile = BuildGroundTop(1102);
+                fillTile = BuildDirtFill(2102);
+                platformTile = BuildPlatform(3101);
+                enemyTex = FromMapRows(Combine(EnemyUpper, EnemyLegsA), EnemyPalette());
+                playerTex = FromMapRows(Combine(PlayerUpper, PlayerLegsIdle), PlayerPalette());
+                decoTex = BuildBush(4102);
+                mesa = false;
+                break;
+        }
+
+        int surfaceY = 44;
+        const int scale = 2;
+
+        // Sky gradient above the ground line.
+        for (int y = surfaceY; y < h; y++)
+        {
+            float tt = (y - surfaceY) / (float)(h - surfaceY);
+            Color c;
+            if (tt < 0.25f) c = Color.Lerp(horizon, low, tt / 0.25f);
+            else if (tt < 0.6f) c = Color.Lerp(low, mid, (tt - 0.25f) / 0.35f);
+            else c = Color.Lerp(mid, top, (tt - 0.6f) / 0.4f);
+            for (int x = 0; x < w; x++) t.SetPixel(x, y, c);
+        }
+
+        // Two parallax-like hill layers; deserts use flat-topped mesas instead.
+        for (int x = 0; x < w; x++)
+        {
+            float nf = mesa
+                ? Mathf.Floor(Noise(x * 2.2f, 90f, 31) * 4f) / 3f
+                : Noise(x * 2.2f, 120f, 31) * 0.7f + Noise(x * 2.2f, 46f, 32) * 0.3f;
+            int farTop = surfaceY + 30 + Mathf.RoundToInt(nf * 46f);
+
+            float nn = mesa
+                ? Mathf.Floor(Noise(x * 1.7f, 110f, 41) * 3f) / 2f
+                : Noise(x * 1.7f, 90f, 41) * 0.7f + Noise(x * 1.7f, 34f, 42) * 0.3f;
+            int nearTop = surfaceY + 12 + Mathf.RoundToInt(nn * 40f);
+
+            int farLimit = Mathf.Min(farTop, h - 1);
+            for (int y = surfaceY; y <= farLimit; y++) t.SetPixel(x, y, hillFar);
+
+            int nearLimit = Mathf.Min(nearTop, h - 1);
+            for (int y = surfaceY; y <= nearLimit; y++) t.SetPixel(x, y, hillNear);
+            t.SetPixel(x, nearLimit, Color.Lerp(hillNear, Color.white, 0.18f));
+        }
+
+        // Underground fill first, then the decorated ground-top row over it.
+        for (int gx = -16 * scale; gx < w; gx += 16 * scale)
+        {
+            BlitScaled(t, fillTile, gx, 0, scale);
+        }
+        for (int gx = -16 * scale; gx < w; gx += 16 * scale)
+        {
+            BlitScaled(t, groundTile, gx, surfaceY - 16 * scale, scale);
+        }
+
+        // A small floating ledge on the right with an enemy standing on it.
+        BlitScaled(t, platformTile, 248, surfaceY + 18, scale);
+        BlitScaled(t, platformTile, 280, surfaceY + 18, scale);
+
+        BlitScaled(t, playerTex, 56, surfaceY, 3);
+        BlitScaled(t, decoTex, 150, surfaceY, 3);
+        BlitScaled(t, enemyTex, 286, surfaceY + 50, 3);
+
+        // Soft vignette so the card reads as a framed scene.
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float u = x / (w - 1f) * 2f - 1f;
+                float v = y / (h - 1f) * 2f - 1f;
+                float d = Mathf.Sqrt(u * u * 0.6f + v * v * 0.8f);
+                float k = Mathf.Clamp01((d - 0.75f) / 0.55f);
+                if (k > 0f)
+                {
+                    Color c = t.GetPixel(x, y);
+                    c = Color.Lerp(c, Color.black, 0.32f * k);
+                    c.a = 1f;
+                    t.SetPixel(x, y, c);
+                }
+            }
+        }
+
+        UnityEngine.Object.DestroyImmediate(groundTile);
+        UnityEngine.Object.DestroyImmediate(fillTile);
+        UnityEngine.Object.DestroyImmediate(platformTile);
+        UnityEngine.Object.DestroyImmediate(enemyTex);
+        UnityEngine.Object.DestroyImmediate(playerTex);
+        UnityEngine.Object.DestroyImmediate(decoTex);
+
+        return Import("level_preview" + level, t, false, 100);
+    }
+
+    // Nearest-neighbour scaled blit used by the level thumbnails.
+    static void BlitScaled(Texture2D dst, Texture2D src, int ox, int oy, int scale)
+    {
+        int dw = src.width * scale;
+        int dh = src.height * scale;
+
+        for (int y = 0; y < dh; y++)
+        {
+            int sy = y / scale;
+            int dy = oy + y;
+            if (dy < 0 || dy >= dst.height) continue;
+
+            for (int x = 0; x < dw; x++)
+            {
+                int dx = ox + x;
+                if (dx < 0 || dx >= dst.width) continue;
+
+                Color c = src.GetPixel(x / scale, sy);
+                if (c.a <= 0f) continue;
+                Color under = dst.GetPixel(dx, dy);
+                dst.SetPixel(dx, dy, Color.Lerp(under, c, c.a));
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ preview
 
     public static void WritePreview()

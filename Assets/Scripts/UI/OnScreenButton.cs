@@ -36,13 +36,31 @@ public class OnScreenButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
         else
         {
             InputBridge.OnScreenFireHeld = true;
+            InputBridge.OnScreenFireDown = true;
+            InputBridge.OnScreenFireHoldTime = 0f;
         }
     }
 
     public void OnPointerUp(PointerEventData eventData)
     {
         if (image != null) image.color = normalColor;
-        if (type == OnScreenButtonType.Jump) InputBridge.OnScreenJumpHeld = false;
-        else InputBridge.OnScreenFireHeld = false;
+        if (type == OnScreenButtonType.Jump)
+        {
+            InputBridge.OnScreenJumpHeld = false;
+        }
+        else
+        {
+            InputBridge.OnScreenFireHeld = false;
+            InputBridge.OnScreenFireHoldTime = 0f;
+        }
+    }
+
+    void Update()
+    {
+        // Tracks how long FIRE has been held so taps stay single-shot while holding auto-fires.
+        if (type == OnScreenButtonType.Fire && InputBridge.OnScreenFireHeld)
+        {
+            InputBridge.OnScreenFireHoldTime += Time.unscaledDeltaTime;
+        }
     }
 }

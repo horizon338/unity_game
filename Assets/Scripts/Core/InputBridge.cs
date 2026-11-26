@@ -9,6 +9,8 @@ public static class InputBridge
     public static Vector2 OnScreenMove;
     public static bool OnScreenJumpHeld;
     public static bool OnScreenFireHeld;
+    public static bool OnScreenFireDown;
+    public static float OnScreenFireHoldTime;
     public static bool OnScreenJumpDown;
 
     // Auto-fire toggled by the AUTO button. When off, the gun fires only while FIRE is held.
@@ -51,6 +53,23 @@ public static class InputBridge
             Keyboard kb = Keyboard.current;
             return OnScreenFireHeld || (kb != null && kb.jKey.isPressed);
         }
+    }
+
+    public static bool KeyboardFireHeld
+    {
+        get
+        {
+            Keyboard kb = Keyboard.current;
+            return kb != null && kb.jKey.isPressed;
+        }
+    }
+
+    // True once per FIRE press. Call from Update only.
+    public static bool ConsumeFirePressed()
+    {
+        bool pressed = OnScreenFireDown;
+        OnScreenFireDown = false;
+        return pressed;
     }
 
     // True once per press. Call from Update only.
