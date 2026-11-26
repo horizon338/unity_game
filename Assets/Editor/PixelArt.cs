@@ -151,6 +151,25 @@ public static class PixelArt
         };
     }
 
+    // Cold-weather uniform for the snow stage: the same soldier silhouette in blue-grey.
+    static Dictionary<char, Color> SnowEnemyPalette()
+    {
+        return new Dictionary<char, Color>
+        {
+            { 'k', Hex("#10141C") },
+            { 'H', Hex("#5A7A94") },
+            { 'I', Hex("#33495C") },
+            { 's', Hex("#E3AE78") },
+            { 'S', Hex("#B57B4A") },
+            { 'u', Hex("#5B7A92") },
+            { 'U', Hex("#3A4F63") },
+            { 'g', Hex("#3E4550") },
+            { 'G', Hex("#8E97A8") },
+            { 'o', Hex("#2A2218") },
+            { 'O', Hex("#18130C") }
+        };
+    }
+
     public static Sprite[] PlayerFrames()
     {
         Dictionary<char, Color> palette = PlayerPalette();
@@ -169,6 +188,16 @@ public static class PixelArt
         {
             FromMap("enemy_a", Combine(EnemyUpper, EnemyLegsA), palette),
             FromMap("enemy_b", Combine(EnemyUpper, EnemyLegsB), palette)
+        };
+    }
+
+    public static Sprite[] SnowEnemyFrames()
+    {
+        Dictionary<char, Color> palette = SnowEnemyPalette();
+        return new[]
+        {
+            FromMap("snow_enemy_a", Combine(EnemyUpper, EnemyLegsA), palette),
+            FromMap("snow_enemy_b", Combine(EnemyUpper, EnemyLegsB), palette)
         };
     }
 
@@ -233,6 +262,212 @@ public static class PixelArt
     public static Sprite PlatformSprite()
     {
         return FromTexture("platform", BuildPlatform(3101));
+    }
+
+    // ------------------------------------------------------------------ snow terrain
+
+    public static Sprite[] SnowGroundTops()
+    {
+        return new[]
+        {
+            FromTexture("snow_ground_top0", BuildSnowGroundTop(1201)),
+            FromTexture("snow_ground_top1", BuildSnowGroundTop(1202)),
+            FromTexture("snow_ground_top2", BuildSnowGroundTop(1203))
+        };
+    }
+
+    public static Sprite[] SnowFills()
+    {
+        return new[]
+        {
+            FromTexture("snow_fill0", BuildSnowFill(2201)),
+            FromTexture("snow_fill1", BuildSnowFill(2202))
+        };
+    }
+
+    public static Sprite SnowPlatformSprite()
+    {
+        return FromTexture("ice_platform", BuildIcePlatform(3201));
+    }
+
+    static Texture2D BuildSnowGroundTop(int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(16, 16);
+
+        Color earthBase = Hex("#4A423C");
+        Color earthDark = Hex("#332D29");
+        Color earthLight = Hex("#5C534B");
+        Color stone = Hex("#6E6A66");
+        Color stoneDark = Hex("#46423E");
+        Color snowTop = Hex("#F6FAFF");
+        Color snowMid = Hex("#E1ECF8");
+        Color snowShade = Hex("#BFD3E6");
+
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 16; x++)
+            {
+                float v = (float)rng.NextDouble();
+                Color c = Color.Lerp(earthDark, earthBase, Mathf.Clamp01(y / 12f));
+                if (v < 0.10f) c = Color.Lerp(c, earthDark, 0.5f);
+                else if (v > 0.94f) c = Color.Lerp(c, earthLight, 0.5f);
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        for (int i = 0; i < 3; i++)
+        {
+            int px = rng.Next(1, 14);
+            int py = rng.Next(1, 8);
+            t.SetPixel(px, py, stone);
+            t.SetPixel(px + 1, py, stone);
+            t.SetPixel(px, py + 1, Color.Lerp(stone, earthLight, 0.4f));
+            t.SetPixel(px + 1, py + 1, stoneDark);
+            t.SetPixel(px, py - 1, stoneDark);
+        }
+
+        int[] top = new int[16];
+        for (int x = 0; x < 16; x++) top[x] = 10 + rng.Next(0, 5);
+
+        for (int x = 0; x < 16; x++)
+        {
+            // Snow blanket: white crown, blue mid tone, shaded underside.
+            t.SetPixel(x, top[x], snowTop);
+            t.SetPixel(x, top[x] - 1, snowMid);
+            t.SetPixel(x, top[x] - 2, rng.NextDouble() < 0.55f ? snowShade : snowMid);
+            t.SetPixel(x, top[x] - 3, Color.Lerp(earthBase, snowShade, 0.30f));
+
+            // Wind-blown overhang hanging one or two pixels below the blanket.
+            if (rng.NextDouble() < 0.35)
+            {
+                int depth = rng.Next(1, 3);
+                for (int i = 0; i < depth; i++) t.SetPixel(x, top[x] - 3 - i, snowShade);
+            }
+            if (rng.NextDouble() < 0.25) t.SetPixel(x, top[x] - 3, snowMid);
+        }
+
+        if (rng.NextDouble() < 0.45)
+        {
+            int fx = rng.Next(0, 16);
+            t.SetPixel(fx, top[fx], Color.white);
+        }
+        if (rng.NextDouble() < 0.5)
+        {
+            int ix = rng.Next(0, 16);
+            int iy = rng.Next(1, 8);
+            t.SetPixel(ix, iy, Color.Lerp(stone, Hex("#7E9DB5"), 0.5f));
+        }
+
+        return t;
+    }
+
+    static Texture2D BuildSnowFill(int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(16, 16);
+
+        Color baseCol = Hex("#3B3A42");
+        Color dark = Hex("#2A2930");
+        Color light = Hex("#4E4D57");
+        Color stone = Hex("#5E5C66");
+        Color ice = Hex("#7C9CB4");
+
+        // Flat per-pixel noise only: stacked rows must not show block seams.
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 16; x++)
+            {
+                float v = (float)rng.NextDouble();
+                Color c = baseCol;
+                if (v < 0.07f) c = Color.Lerp(c, dark, 0.45f);
+                else if (v > 0.95f) c = Color.Lerp(c, light, 0.40f);
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        for (int band = 0; band < 3; band++)
+        {
+            int by = rng.Next(2, 14);
+            for (int x = 0; x < 16; x++)
+            {
+                if (rng.NextDouble() < 0.6)
+                    t.SetPixel(x, by, Color.Lerp(t.GetPixel(x, by), ice, 0.25f));
+            }
+        }
+
+        for (int i = 0; i < 3; i++)
+        {
+            int px = rng.Next(1, 15);
+            int py = rng.Next(1, 15);
+            t.SetPixel(px, py, stone);
+            t.SetPixel(px, py + 1, Color.Lerp(stone, dark, 0.4f));
+            t.SetPixel(px + 1, py, Color.Lerp(stone, dark, 0.3f));
+        }
+
+        return t;
+    }
+
+    static Texture2D BuildIcePlatform(int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(16, 16);
+
+        Color topSnow = Hex("#F4F9FF");
+        Color topIce = Hex("#D2E4F4");
+        Color upper = Hex("#9FC2DC");
+        Color body = Hex("#7195B2");
+        Color bodyDark = Hex("#4C6B88");
+        Color bottom = Hex("#34506B");
+
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 16; x++)
+            {
+                Color c;
+                if (y == 15) c = topSnow;
+                else if (y == 14) c = topIce;
+                else if (y == 13) c = Color.Lerp(topIce, upper, 0.6f);
+                else if (y <= 2) c = Color.Lerp(bottom, bodyDark, y / 2f);
+                else c = Color.Lerp(bodyDark, body, Mathf.Clamp01((y - 2) / 11f));
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        for (int y = 3; y <= 13; y++)
+        {
+            t.SetPixel(0, y, bodyDark);
+            t.SetPixel(15, y, bodyDark);
+        }
+
+        // Vertical cracks in the ice.
+        for (int i = 0; i < 3; i++)
+        {
+            int cx = rng.Next(2, 14);
+            int start = rng.Next(3, 9);
+            int len = rng.Next(3, 8);
+            for (int y = start; y < start + len && y < 14; y++)
+            {
+                t.SetPixel(cx, y, Color.Lerp(bodyDark, Color.white, 0.10f));
+            }
+        }
+
+        // Hanging icicles at the underside.
+        for (int i = 0; i < 4; i++)
+        {
+            int ix = rng.Next(1, 15);
+            int len = rng.Next(1, 3);
+            for (int y = 0; y < len; y++) t.SetPixel(ix, y, Hex("#BFD9EC"));
+        }
+
+        // A dusting of snow on the top edge.
+        for (int x = 0; x < 16; x++)
+        {
+            if (rng.NextDouble() < 0.4) t.SetPixel(x, 15, Color.white);
+            if (rng.NextDouble() < 0.25) t.SetPixel(x, 14, Hex("#EAF4FC"));
+        }
+
+        return t;
     }
 
     static Texture2D BuildGroundTop(int seed)
@@ -414,14 +649,21 @@ public static class PixelArt
 
     public static Sprite SkySprite()
     {
+        return SkyGradient("sky",
+            Hex("#F2E3BE"), Hex("#DCE9EA"), Hex("#8FBFE4"), Hex("#2E63B2"));
+    }
+
+    public static Sprite SnowSkySprite()
+    {
+        return SkyGradient("snow_sky",
+            Hex("#F3E9EC"), Hex("#E2ECF5"), Hex("#A9C8E4"), Hex("#4C7CB3"));
+    }
+
+    static Sprite SkyGradient(string name, Color horizon, Color low, Color mid, Color top)
+    {
         int w = 8;
         int h = 256;
         Texture2D t = NewTex(w, h);
-
-        Color horizon = Hex("#F2E3BE");
-        Color low = Hex("#DCE9EA");
-        Color mid = Hex("#8FBFE4");
-        Color top = Hex("#2E63B2");
 
         for (int y = 0; y < h; y++)
         {
@@ -433,28 +675,39 @@ public static class PixelArt
             for (int x = 0; x < w; x++) t.SetPixel(x, y, c);
         }
 
-        return Import("sky", t, false, Ppu);
+        return Import(name, t, false, Ppu);
     }
 
     public static Sprite MountainSprite()
+    {
+        return BuildMountainSprite("mountains",
+            Hex("#AEC6D9"), Hex("#7E9BBC"), Hex("#5E7C9A"), 11, false);
+    }
+
+    public static Sprite SnowMountainSprite()
+    {
+        return BuildMountainSprite("snow_mountains",
+            Hex("#DEE9F2"), Hex("#B7CCDE"), Hex("#8FAAC4"), 61, true);
+    }
+
+    static Sprite BuildMountainSprite(string name, Color haze, Color far, Color near, int seedBase, bool snowCaps)
     {
         int w = 4096;
         int h = 128;
         Texture2D t = NewTex(w, h);
 
-        Color haze = Hex("#AEC6D9");
-        Color far = Hex("#7E9BBC");
-        Color near = Hex("#5E7C9A");
-
         float[] ridgeFar = new float[w];
         float[] ridgeNear = new float[w];
         for (int x = 0; x < w; x++)
         {
-            float nf = 0.55f * Ridged(x, 340f, 11) + 0.30f * Ridged(x, 130f, 12) + 0.15f * Ridged(x, 48f, 13);
+            float nf = 0.55f * Ridged(x, 340f, seedBase) + 0.30f * Ridged(x, 130f, seedBase + 1) + 0.15f * Ridged(x, 48f, seedBase + 2);
             ridgeFar[x] = 42f + nf * 74f;
-            float nn = 0.55f * Ridged(x, 280f, 21) + 0.30f * Ridged(x, 100f, 22) + 0.15f * Ridged(x, 36f, 23);
+            float nn = 0.55f * Ridged(x, 280f, seedBase + 10) + 0.30f * Ridged(x, 100f, seedBase + 11) + 0.15f * Ridged(x, 36f, seedBase + 12);
             ridgeNear[x] = 16f + nn * 62f;
         }
+
+        Color snowFar = Hex("#F3F8FF");
+        Color snowNear = Hex("#FFFFFF");
 
         for (int x = 0; x < w; x++)
         {
@@ -464,11 +717,24 @@ public static class PixelArt
                 if (y <= ridgeFar[x])
                 {
                     c = Color.Lerp(haze, far, Mathf.Clamp01(y / Mathf.Max(1f, ridgeFar[x]) * 1.15f));
+                    if (snowCaps)
+                    {
+                        // The higher the peak, the deeper the snow cap reaches down.
+                        float depth = Mathf.Lerp(3f, 16f, ridgeFar[x] / 116f);
+                        float d = ridgeFar[x] - y;
+                        if (d < depth) c = Color.Lerp(c, snowFar, 1f - d / depth);
+                    }
                     if (Mathf.Abs(y - ridgeFar[x]) < 1.5f) c = Color.Lerp(c, Color.white, 0.18f);
                 }
                 if (y <= ridgeNear[x])
                 {
                     c = Color.Lerp(haze, near, Mathf.Clamp01(y / Mathf.Max(1f, ridgeNear[x]) * 1.15f));
+                    if (snowCaps)
+                    {
+                        float depth = Mathf.Lerp(4f, 22f, ridgeNear[x] / 78f);
+                        float d = ridgeNear[x] - y;
+                        if (d < depth) c = Color.Lerp(c, snowNear, 1f - d / depth);
+                    }
                     if (Mathf.Abs(y - ridgeNear[x]) < 1.5f) c = Color.Lerp(c, Color.white, 0.22f);
                 }
 
@@ -481,7 +747,7 @@ public static class PixelArt
             }
         }
 
-        return Import("mountains", t, true, Ppu);
+        return Import(name, t, true, Ppu);
     }
 
     public static Sprite TreelineSprite()
@@ -535,6 +801,68 @@ public static class PixelArt
         }
 
         return Import("treeline", t, true, Ppu);
+    }
+
+    // Snow stage treeline: two bands of jagged pines, hazy far band behind a darker near band.
+    public static Sprite PineTreelineSprite()
+    {
+        int w = 4096;
+        int h = 96;
+        Texture2D t = NewTex(w, h);
+        System.Random rng = new System.Random(919);
+
+        DrawPineBand(t, rng, 0f, 14f, 26f, Hex("#8FA9BF"), Hex("#DCE9F4"));
+        DrawPineBand(t, rng, 6f, 20f, 46f, Hex("#2F4E60"), Hex("#EFF7FF"));
+
+        return Import("pine_treeline", t, true, Ppu);
+    }
+
+    static void DrawPineBand(Texture2D t, System.Random rng, float baseY, float minH, float maxH, Color body, Color snow)
+    {
+        int x = -8;
+        while (x < t.width + 8)
+        {
+            float height = Rand(rng, minH, maxH);
+            float halfW = height * Rand(rng, 0.28f, 0.40f);
+            DrawPine(t, x, baseY, halfW, height, body, snow);
+            x += Mathf.Max(5, Mathf.RoundToInt(halfW * Rand(rng, 1.5f, 2.2f)));
+        }
+    }
+
+    static void DrawPine(Texture2D t, int cx, float baseY, float halfW, float height, Color body, Color snow)
+    {
+        int w = t.width;
+        int h = t.height;
+        Color dark = Color.Lerp(body, Color.black, 0.25f);
+        Color light = Color.Lerp(body, Color.white, 0.10f);
+
+        int baseYi = Mathf.RoundToInt(baseY);
+        int tipYi = Mathf.Min(h - 1, baseYi + Mathf.RoundToInt(height));
+
+        for (int py = baseYi; py <= tipYi; py++)
+        {
+            float k = (py - baseY) / height;
+            // Serrated edge: the width pulses every few rows so the silhouette reads as branches.
+            float serration = 0.80f + 0.20f * Mathf.Abs(Mathf.Sin((py - baseY) * 1.35f));
+            int hw = Mathf.RoundToInt(halfW * (1f - k) * serration);
+            if (hw < 1) hw = 1;
+
+            bool snowRow = ((py - baseYi) % 6) == 0;
+
+            for (int dx = -hw; dx <= hw; dx++)
+            {
+                int px = cx + dx;
+                if (px < 0 || px >= w) continue;
+
+                Color c = body;
+                if (dx == -hw) c = light;
+                else if (dx == hw) c = dark;
+                if (snowRow && dx <= 0) c = snow;
+                t.SetPixel(px, py, c);
+            }
+        }
+
+        if (tipYi >= 0 && tipYi < h) t.SetPixel(cx, tipYi, snow);
     }
 
     public static Sprite CloudSprite(int seed)
@@ -733,6 +1061,212 @@ public static class PixelArt
         return FromTexture("rock", t);
     }
 
+    // ------------------------------------------------------------------ snow decorations
+
+    public static Sprite[] SnowDriftSprites()
+    {
+        return new[]
+        {
+            FromTexture("snow_drift_a", BuildSnowDrift(6101)),
+            FromTexture("snow_drift_b", BuildSnowDrift(6102))
+        };
+    }
+
+    public static Sprite[] SnowBushSprites()
+    {
+        return new[]
+        {
+            FromTexture("snow_bush_a", BuildSnowBush(6201)),
+            FromTexture("snow_bush_b", BuildSnowBush(6202))
+        };
+    }
+
+    static Texture2D BuildSnowDrift(int seed)
+    {
+        int w = 16;
+        int h = 8;
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(w, h);
+
+        Color snowTop = Hex("#F6FAFF");
+        Color snowMid = Hex("#E2EDF8");
+        Color shade = Hex("#BCD2E6");
+
+        float[] top = new float[w];
+        for (int i = 0; i < 4; i++)
+        {
+            int cx = rng.Next(2, 14);
+            float r = Rand(rng, 3f, 6.5f);
+            int span = Mathf.CeilToInt(r);
+            for (int dx = -span; dx <= span; dx++)
+            {
+                int x = cx + dx;
+                if (x < 0 || x >= w) continue;
+                float k = 1f - (dx * dx) / (r * r);
+                if (k <= 0f) continue;
+                float tp = 1f + r * Mathf.Sqrt(k);
+                if (tp > top[x]) top[x] = tp;
+            }
+        }
+
+        for (int x = 0; x < w; x++)
+        {
+            int tp = Mathf.Clamp(Mathf.RoundToInt(top[x]), 0, h - 1);
+            if (tp <= 0) continue;
+            for (int y = 0; y <= tp; y++)
+            {
+                Color c = Color.Lerp(shade, snowTop, y / (float)tp);
+                if (y == tp) c = snowTop;
+                else if (y >= tp - 1) c = snowMid;
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        return t;
+    }
+
+    static Texture2D BuildSnowBush(int seed)
+    {
+        int w = 24;
+        int h = 16;
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(w, h);
+
+        float[] top = new float[w];
+        for (int i = 0; i < 6; i++)
+        {
+            int cx = rng.Next(4, 21);
+            float r = Rand(rng, 5f, 8f);
+            int span = Mathf.CeilToInt(r);
+            for (int dx = -span; dx <= span; dx++)
+            {
+                int x = cx + dx;
+                if (x < 0 || x >= w) continue;
+                float k = 1f - (dx * dx) / (r * r);
+                if (k <= 0f) continue;
+                float tp = 4f + r * Mathf.Sqrt(k);
+                if (tp > top[x]) top[x] = tp;
+            }
+        }
+
+        Color baseCol = Hex("#3E5B52");
+        Color darkCol = Hex("#2A4038");
+        Color snowTop = Hex("#F2F8FF");
+        Color snowShade = Hex("#C9DCEB");
+
+        for (int x = 0; x < w; x++)
+        {
+            int tp = Mathf.Clamp(Mathf.RoundToInt(top[x]), 0, h - 1);
+            if (tp <= 0) continue;
+            for (int y = 0; y <= tp; y++)
+            {
+                Color c = Color.Lerp(darkCol, baseCol, y / (float)tp);
+                if (y >= tp - 1) c = snowTop;
+                else if (y >= tp - 3) c = snowShade;
+                float v = Hash(x * 31 + y * 7, 3) * 0.10f - 0.05f;
+                c = new Color(c.r + v, c.g + v, c.b + v, 1f);
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        return t;
+    }
+
+    public static Sprite IceRockSprite()
+    {
+        int w = 12;
+        int h = 8;
+        Texture2D t = NewTex(w, h);
+        Color baseCol = Hex("#7E93A6");
+        Color light = Hex("#A8BDCE");
+        Color dark = Hex("#4E6072");
+        Color snow = Hex("#EEF6FD");
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float nx = (x - 5.5f) / 5.5f;
+                float ny = (y - 3.5f) / 3.5f;
+                if (nx * nx + ny * ny > 1f) continue;
+                Color c = baseCol;
+                if (nx + ny < -0.6f) c = light;
+                else if (nx + ny > 0.7f) c = dark;
+                if (y >= 5) c = snow;
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        return FromTexture("ice_rock", t);
+    }
+
+    // Small snow-covered pine used as a ground decoration on the winter stage.
+    public static Sprite PineSprite()
+    {
+        int w = 24;
+        int h = 40;
+        Texture2D t = NewTex(w, h);
+
+        Color trunk = Hex("#4A3A2A");
+        Color trunkDark = Hex("#33281D");
+        Color foliageDark = Hex("#1E3D38");
+        Color foliage = Hex("#2E5A4C");
+        Color foliageLight = Hex("#3E725F");
+        Color snow = Hex("#F2F8FF");
+        Color snowShade = Hex("#C7D9E8");
+
+        for (int y = 0; y < 9; y++)
+        {
+            t.SetPixel(11, y, trunkDark);
+            t.SetPixel(12, y, trunk);
+        }
+
+        for (int tier = 0; tier < 3; tier++)
+        {
+            int baseY = 6 + tier * 10;
+            int tierH = 16;
+            float halfW = 10f - tier * 2.4f;
+
+            for (int y = 0; y < tierH; y++)
+            {
+                float k = y / (float)tierH;
+                int hw = Mathf.RoundToInt(halfW * (1f - k));
+                if (hw < 1) hw = 1;
+                int py = baseY + y;
+                if (py >= h) break;
+
+                for (int dx = -hw; dx <= hw; dx++)
+                {
+                    int px = 12 + dx;
+                    if (px < 0 || px >= w) continue;
+                    Color c = foliage;
+                    if (dx == hw) c = foliageDark;
+                    else if (dx == -hw || y == tierH - 1) c = foliageLight;
+                    t.SetPixel(px, py, c);
+                }
+
+                // Snow resting on the lower edge of each tier.
+                if (y == 0)
+                {
+                    for (int dx = -hw; dx <= 0; dx++)
+                    {
+                        int px = 12 + dx;
+                        if (px >= 0 && px < w) t.SetPixel(px, py, snow);
+                    }
+                }
+            }
+
+            int tipY = Mathf.Min(h - 1, baseY + tierH);
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                int px = 12 + dx;
+                if (px >= 0 && px < w) t.SetPixel(px, tipY, tier == 2 ? snow : snowShade);
+            }
+        }
+
+        return Import("pine", t, true, Ppu);
+    }
+
     // ------------------------------------------------------------------ UI
 
     public static Sprite UiCircle(string name, int size, float feather = 2f)
@@ -853,6 +1387,16 @@ public static class PixelArt
     // Vertical darkening laid over the underground strip so the dirt fades towards the bottom.
     public static Sprite DepthShadeSprite()
     {
+        return BuildDepthShade("depth_shade", new Color(0.05f, 0.03f, 0.02f));
+    }
+
+    public static Sprite SnowDepthShadeSprite()
+    {
+        return BuildDepthShade("depth_shade_snow", new Color(0.02f, 0.05f, 0.10f));
+    }
+
+    static Sprite BuildDepthShade(string name, Color tint)
+    {
         int w = 32;
         int h = 64;
         Texture2D t = NewTex(w, h);
@@ -860,10 +1404,66 @@ public static class PixelArt
         {
             float k = 1f - y / (h - 1f); // 1 at the bottom row, 0 at the top row
             float a = 0.40f * k * k;
-            Color c = new Color(0.05f, 0.03f, 0.02f, a);
+            Color c = new Color(tint.r, tint.g, tint.b, a);
             for (int x = 0; x < w; x++) t.SetPixel(x, y, c);
         }
-        return Import("depth_shade", t, true, Ppu);
+        return Import(name, t, true, Ppu);
+    }
+
+    // End-of-stage flag: grey pole with a red pennant pointing right.
+    public static Sprite GoalFlagSprite()
+    {
+        int w = 16;
+        int h = 32;
+        Texture2D t = NewTex(w, h);
+
+        Color pole = Hex("#B7BFC8");
+        Color poleDark = Hex("#5E6670");
+        Color flag = Hex("#E8452C");
+        Color flagDark = Hex("#A82A18");
+        Color flagLight = Hex("#FF6A4E");
+
+        for (int y = 0; y < h; y++)
+        {
+            t.SetPixel(3, y, poleDark);
+            t.SetPixel(4, y, pole);
+        }
+        t.SetPixel(2, h - 1, poleDark);
+        t.SetPixel(5, h - 1, poleDark);
+        for (int x = 2; x <= 5; x++) t.SetPixel(x, 0, poleDark);
+
+        // Pennant: full width at the top, tapering down to the pole.
+        for (int y = 14; y <= 30; y++)
+        {
+            int len = 4 + Mathf.RoundToInt(11f * (y - 14) / 16f);
+            for (int x = 5; x <= len; x++)
+            {
+                Color c = flag;
+                if (y == 14) c = flagDark;
+                else if (x == len) c = flagDark;
+                else if (y >= 28) c = flagLight;
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        return Import("goal_flag", t, true, Ppu);
+    }
+
+    // Round soft flake for the snow particle field.
+    public static Sprite SnowflakeSprite()
+    {
+        string[] rows =
+        {
+            ".WW.",
+            "WWWW",
+            "WWWW",
+            ".WW."
+        };
+        Dictionary<char, Color> palette = new Dictionary<char, Color>
+        {
+            { 'W', new Color(1f, 1f, 1f, 0.85f) }
+        };
+        return Import("snowflake", FromMapRows(rows, palette), false, Ppu);
     }
 
     // ------------------------------------------------------------------ preview

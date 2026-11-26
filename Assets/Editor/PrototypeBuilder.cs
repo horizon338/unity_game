@@ -22,8 +22,82 @@ public static class PrototypeBuilder
     const string TileDir = "Assets/Art/Tiles";
     const string PrefabDir = "Assets/Prefabs";
     const string DataDir = "Assets/Data";
-    const string ScenePath = "Assets/Scenes/Stage01.unity";
+    const string Stage1Path = "Assets/Scenes/Stage01.unity";
+    const string Stage2Path = "Assets/Scenes/Stage02.unity";
     const string ApkRelativePath = "Builds/android/Prototype.apk";
+
+    // Art, prefabs and UI sprites every stage shares; generated once per run.
+    sealed class Shared
+    {
+        public Sprite[] playerFrames;
+        public Bullet bulletPrefab;
+        public EnemyBullet enemyBulletPrefab;
+        public WeaponData weapon;
+        public Sprite enemyBarSprite;
+        public Sprite cloudSprite;
+        public Sprite vignetteSprite;
+        public Sprite goalFlagSprite;
+        public Font font;
+        public Sprite uiCircle;
+        public Sprite uiRing;
+        public Sprite uiKnob;
+        public Sprite uiButton;
+        public Sprite uiArrow;
+        public Sprite uiBulletIcon;
+    }
+
+    // Everything that varies between stages: theme art, palette, layout and spawns.
+    sealed class LevelSpec
+    {
+        public string scenePath;
+        public string stageLabel;
+
+        public string groundTileName;
+        public string fillTileName;
+        public string platformTileName;
+        public Sprite[] groundTops;
+        public Sprite[] fillTiles;
+        public Sprite platformSprite;
+        public Sprite pitBackingSprite;
+        public Sprite depthShadeSprite;
+
+        public Sprite[] enemyFrames;
+        public Sprite skySprite;
+        public Sprite mountainSprite;
+        public Sprite treelineSprite;
+        public Color cameraBackground;
+        public Color lightTint;
+
+        public int paintFromX;
+        public int paintToX;
+        public Vector2Int[] pits;
+        public int[][] platforms;
+        public Vector3[] enemies; // x, y, patrol distance in z
+
+        public float playerX;
+        public float playerY;
+        public float wallLeftX;
+        public float wallRightX;
+        public float camMinX;
+        public float camMaxX;
+        public float camMaxY;
+
+        public Sprite goalSprite;
+        public Vector3 goalPosition;
+        public string nextScene;
+        public bool stageClearLabel;
+
+        public Sprite[] decoSmall;
+        public Sprite[] decoBush;
+        public Sprite decoRock;
+        public Sprite decoPine;
+        public int decoSeed;
+        public float decoFromX;
+        public float decoToX;
+
+        public bool snowfall;
+        public Sprite snowflakeSprite;
+    }
 
     public static void SetupBatch()
     {
@@ -45,13 +119,29 @@ public static class PrototypeBuilder
     {
         try
         {
-            BuildApk();
+            BuildApk(true, ApkRelativePath);
             Debug.Log("[PrototypeBuilder] BuildApkBatch finished");
             EditorApplication.Exit(0);
         }
         catch (Exception e)
         {
             Debug.LogError("[PrototypeBuilder] BuildApkBatch failed: " + e);
+            EditorApplication.Exit(1);
+        }
+    }
+
+    // Release build: no Development Build overlay (the on-screen watermark) and no debugger.
+    public static void BuildReleaseApkBatch()
+    {
+        try
+        {
+            BuildApk(false, "Builds/android/Prototype-release.apk");
+            Debug.Log("[PrototypeBuilder] BuildReleaseApkBatch finished");
+            EditorApplication.Exit(0);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("[PrototypeBuilder] BuildReleaseApkBatch failed: " + e);
             EditorApplication.Exit(1);
         }
     }
@@ -79,11 +169,15 @@ public static class PrototypeBuilder
         EditorUserBuildSettings.buildAppBundle = false;
         EditorUserBuildSettings.androidBuildSubtarget = MobileTextureSubtarget.ASTC;
 
-        EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+        EditorBuildSettings.scenes = new[]
+        {
+            new EditorBuildSettingsScene(Stage1Path, true),
+            new EditorBuildSettingsScene(Stage2Path, true)
+        };
         AssetDatabase.SaveAssets();
     }
 
-    // Plan steps 6-7: placeholder art, data asset, prefabs, stage and touch UI.
+    // Plan steps 6-7: placeholder art, data asset, prefabs, both stages and touch UI.
     static void BuildScene()
     {
         Directory.CreateDirectory(ArtDir);
@@ -91,23 +185,216 @@ public static class PrototypeBuilder
         Directory.CreateDirectory(PrefabDir);
         Directory.CreateDirectory(DataDir);
 
-        Sprite[] playerFrames = PixelArt.PlayerFrames();
-        Sprite[] enemyFrames = PixelArt.EnemyFrames();
-        Sprite bulletSprite = PixelArt.BulletSprite();
+        Shared shared = new Shared
+        {
+            playerFrames = PixelArt.PlayerFrames(),
+            bulletPrefab = CreateBulletPrefab(PixelArt.BulletSprite()),
+            enemyBulletPrefab = CreateEnemyBulletPrefab(PixelArt.EnemyBulletSprite()),
+            weapon = CreateWeapon(),
+            enemyBarSprite = PixelArt.SolidSprite("enemy_bar", Color.white),
+            cloudSprite = PixelArt.CloudSprite(5001),
+            vignetteSprite = PixelArt.VignetteSprite(),
+            goalFlagSprite = PixelArt.GoalFlagSprite(),
+            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"),
+            uiCircle = PixelArt.UiCircle("ui_circle", 256),
+            uiRing = PixelArt.UiRing("ui_ring", 256, 7f),
+            uiKnob = PixelArt.UiCircle("ui_knob", 128),
+            uiButton = PixelArt.UiRoundedRect("ui_button", 256, 60f),
+            uiArrow = PixelArt.UiArrow(),
+            uiBulletIcon = PixelArt.UiBulletIcon()
+        };
 
-        Sprite[] groundTopSprites = PixelArt.GroundTops();
-        Sprite[] dirtSprites = PixelArt.DirtFills();
-        Sprite platformSprite = PixelArt.PlatformSprite();
+        BuildLevel(Stage1Spec(shared), shared);
+        BuildLevel(Stage2Spec(shared), shared);
 
-        Tile[] groundTiles = new Tile[groundTopSprites.Length];
-        for (int i = 0; i < groundTiles.Length; i++) groundTiles[i] = CreateTile(groundTopSprites[i], "GroundTop" + i);
-        Tile[] dirtTiles = new Tile[dirtSprites.Length];
-        for (int i = 0; i < dirtTiles.Length; i++) dirtTiles[i] = CreateTile(dirtSprites[i], "DirtFill" + i);
-        Tile platformTile = CreateTile(platformSprite, "Platform");
-        WeaponData weapon = CreateWeapon();
-        Bullet bulletPrefab = CreateBulletPrefab(bulletSprite);
-        EnemyBullet enemyBulletPrefab = CreateEnemyBulletPrefab(PixelArt.EnemyBulletSprite());
-        Sprite enemyBarSprite = PixelArt.SolidSprite("enemy_bar", Color.white);
+        PixelArt.WritePreview();
+    }
+
+    // Level 1: jungle grassland, unchanged layout, now ends with a flag that loads level 2.
+    static LevelSpec Stage1Spec(Shared shared)
+    {
+        return new LevelSpec
+        {
+            scenePath = Stage1Path,
+            stageLabel = "STAGE 1",
+
+            groundTileName = "GroundTop",
+            fillTileName = "DirtFill",
+            platformTileName = "Platform",
+            groundTops = PixelArt.GroundTops(),
+            fillTiles = PixelArt.DirtFills(),
+            platformSprite = PixelArt.PlatformSprite(),
+            pitBackingSprite = PixelArt.SolidSprite("pit_backing", new Color(0.10f, 0.07f, 0.05f, 1f)),
+            depthShadeSprite = PixelArt.DepthShadeSprite(),
+
+            enemyFrames = PixelArt.EnemyFrames(),
+            skySprite = PixelArt.SkySprite(),
+            mountainSprite = PixelArt.MountainSprite(),
+            treelineSprite = PixelArt.TreelineSprite(),
+            cameraBackground = new Color(0.45f, 0.7f, 0.95f),
+            lightTint = Color.white,
+
+            paintFromX = -40,
+            paintToX = 199,
+            pits = new[]
+            {
+                new Vector2Int(22, 24),
+                new Vector2Int(56, 58),
+                new Vector2Int(92, 94),
+                new Vector2Int(124, 126),
+                new Vector2Int(158, 160)
+            },
+            platforms = new[]
+            {
+                new[] { 8, 12, 3 },
+                new[] { 30, 34, 4 },
+                new[] { 42, 46, 2 },
+                new[] { 64, 68, 3 },
+                new[] { 84, 88, 2 },
+                new[] { 100, 104, 3 },
+                new[] { 132, 136, 2 },
+                new[] { 136, 140, 3 },
+                new[] { 170, 174, 3 },
+                new[] { 176, 180, 2 }
+            },
+            enemies = new[]
+            {
+                E(14f, 1.69f, 2f), E(28f, 1.69f, 2f), E(40f, 1.69f, 2f), E(50f, 1.69f, 2f),
+                E(62f, 1.69f, 2f), E(76f, 1.69f, 2f), E(88f, 1.69f, 2f), E(100f, 1.69f, 3f),
+                E(108f, 1.69f, 2f), E(114f, 1.69f, 2f), E(130f, 1.69f, 2f), E(144f, 1.69f, 2f),
+                E(152f, 1.69f, 2f), E(164f, 1.69f, 2f), E(180f, 1.69f, 2f), E(184f, 1.69f, 2f),
+                E(10f, 4.69f, 1.5f), E(66f, 4.69f, 1.5f), E(102f, 4.69f, 1.5f), E(138f, 4.69f, 1.5f),
+                E(172f, 4.69f, 1.5f),
+                E(44f, 3.69f, 1.5f), E(86f, 3.69f, 1.5f), E(134f, 3.69f, 1.5f), E(178f, 3.69f, 1.5f)
+            },
+
+            playerX = 0f,
+            playerY = 2f,
+            wallLeftX = -19f,
+            wallRightX = 188f,
+            camMinX = -20f,
+            camMaxX = 180f,
+            camMaxY = 5f,
+
+            goalSprite = shared.goalFlagSprite,
+            goalPosition = new Vector3(185f, 2f, 0f),
+            nextScene = "Stage02",
+            stageClearLabel = false,
+
+            decoSmall = PixelArt.TuftSprites(),
+            decoBush = PixelArt.BushSprites(),
+            decoRock = PixelArt.RockSprite(),
+            decoSeed = 2024,
+            decoFromX = -38f,
+            decoToX = 194f
+        };
+    }
+
+    // Level 2: snowfield. Snow-capped ground, ice ledges, snowy pines, snowfall and blue-grey troops.
+    static LevelSpec Stage2Spec(Shared shared)
+    {
+        return new LevelSpec
+        {
+            scenePath = Stage2Path,
+            stageLabel = "STAGE 2",
+
+            groundTileName = "SnowGroundTop",
+            fillTileName = "SnowFill",
+            platformTileName = "IcePlatform",
+            groundTops = PixelArt.SnowGroundTops(),
+            fillTiles = PixelArt.SnowFills(),
+            platformSprite = PixelArt.SnowPlatformSprite(),
+            pitBackingSprite = PixelArt.SolidSprite("pit_backing_snow", new Color(0.04f, 0.07f, 0.11f, 1f)),
+            depthShadeSprite = PixelArt.SnowDepthShadeSprite(),
+
+            enemyFrames = PixelArt.SnowEnemyFrames(),
+            skySprite = PixelArt.SnowSkySprite(),
+            mountainSprite = PixelArt.SnowMountainSprite(),
+            treelineSprite = PixelArt.PineTreelineSprite(),
+            cameraBackground = new Color(0.56f, 0.72f, 0.88f),
+            lightTint = new Color(0.88f, 0.94f, 1f),
+
+            paintFromX = -40,
+            paintToX = 199,
+            pits = new[]
+            {
+                new Vector2Int(24, 26),
+                new Vector2Int(50, 52),
+                new Vector2Int(76, 78),
+                new Vector2Int(102, 104),
+                new Vector2Int(128, 130),
+                new Vector2Int(154, 156)
+            },
+            platforms = new[]
+            {
+                new[] { 6, 10, 3 },
+                new[] { 11, 15, 4 },
+                new[] { 30, 34, 2 },
+                new[] { 36, 40, 4 },
+                new[] { 58, 62, 3 },
+                new[] { 63, 67, 4 },
+                new[] { 68, 72, 2 },
+                new[] { 94, 98, 3 },
+                new[] { 110, 114, 2 },
+                new[] { 116, 120, 4 },
+                new[] { 136, 140, 3 },
+                new[] { 146, 150, 2 },
+                new[] { 162, 166, 3 },
+                new[] { 167, 171, 4 },
+                new[] { 180, 184, 2 }
+            },
+            enemies = new[]
+            {
+                E(12f, 1.69f, 2f), E(20f, 1.69f, 2f), E(36f, 1.69f, 2f), E(46f, 1.69f, 2f),
+                E(56f, 1.69f, 2f), E(66f, 1.69f, 2f), E(82f, 1.69f, 3f), E(92f, 1.69f, 2f),
+                E(108f, 1.69f, 2f), E(118f, 1.69f, 2f), E(134f, 1.69f, 2f), E(148f, 1.69f, 2f),
+                E(160f, 1.69f, 2f), E(172f, 1.69f, 2f), E(182f, 1.69f, 2f),
+                E(8f, 4.69f, 1.5f), E(60f, 4.69f, 1.5f), E(96f, 4.69f, 1.5f), E(138f, 4.69f, 1.5f),
+                E(164f, 4.69f, 1.5f),
+                E(13f, 5.69f, 1.5f), E(38f, 5.69f, 1.5f), E(65f, 5.69f, 1.5f), E(118f, 5.69f, 1.5f),
+                E(169f, 5.69f, 1.5f),
+                E(32f, 3.69f, 1.5f), E(70f, 3.69f, 1.5f), E(112f, 3.69f, 1.5f), E(148f, 3.69f, 1.5f),
+                E(182f, 3.69f, 1.5f)
+            },
+
+            playerX = 0f,
+            playerY = 2f,
+            wallLeftX = -19f,
+            wallRightX = 188f,
+            camMinX = -20f,
+            camMaxX = 180f,
+            camMaxY = 5f,
+
+            goalSprite = shared.goalFlagSprite,
+            goalPosition = new Vector3(185f, 2f, 0f),
+            nextScene = "",
+            stageClearLabel = true,
+
+            decoSmall = PixelArt.SnowDriftSprites(),
+            decoBush = PixelArt.SnowBushSprites(),
+            decoRock = PixelArt.IceRockSprite(),
+            decoPine = PixelArt.PineSprite(),
+            decoSeed = 3117,
+            decoFromX = -38f,
+            decoToX = 194f,
+
+            snowfall = true,
+            snowflakeSprite = PixelArt.SnowflakeSprite()
+        };
+    }
+
+    static Vector3 E(float x, float y, float patrol)
+    {
+        return new Vector3(x, y, patrol);
+    }
+
+    static void BuildLevel(LevelSpec spec, Shared shared)
+    {
+        Tile[] groundTiles = new Tile[spec.groundTops.Length];
+        for (int i = 0; i < groundTiles.Length; i++) groundTiles[i] = CreateTile(spec.groundTops[i], spec.groundTileName + i);
+        Tile[] fillTiles = new Tile[spec.fillTiles.Length];
+        for (int i = 0; i < fillTiles.Length; i++) fillTiles[i] = CreateTile(spec.fillTiles[i], spec.fillTileName + i);
+        Tile platformTile = CreateTile(spec.platformSprite, spec.platformTileName);
 
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -122,8 +409,7 @@ public static class PrototypeBuilder
         cam.orthographic = true;
         cam.orthographicSize = 6.75f;
         cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = new Color(0.45f, 0.7f, 0.95f);
-        // Sky, clouds, mountains and vignette are children/parallax layers created below.
+        cam.backgroundColor = spec.cameraBackground;
         // The camera must sit in front of the z=0 world. A camera created at z=0 is clipped by its near plane.
         cam.transform.position = new Vector3(0f, 2f, -10f);
         cam.transform.rotation = Quaternion.identity;
@@ -138,10 +424,11 @@ public static class PrototypeBuilder
         Light2D globalLight = lightGo.AddComponent<Light2D>();
         globalLight.lightType = Light2D.LightType.Global;
         globalLight.intensity = 1f;
+        globalLight.color = spec.lightTint;
 
-        CreateBackground(cam);
+        CreateBackground(cam, shared, spec);
 
-        // Level: Grid > Ground tilemap with a composite collider.
+        // Level: Grid > Ground tilemap.
         GameObject gridGo = new GameObject("Grid");
         gridGo.AddComponent<Grid>();
         GameObject groundGo = new GameObject("Ground");
@@ -155,40 +442,29 @@ public static class PrototypeBuilder
         // Plain tilemap colliders: the composite path did not produce working colliders on the phone build.
         groundGo.AddComponent<TilemapCollider2D>();
 
-        for (int x = -40; x < 200; x++)
+        for (int x = spec.paintFromX; x <= spec.paintToX; x++)
         {
-            bool pit = (x >= 22 && x <= 24) || (x >= 56 && x <= 58)
-                || (x >= 92 && x <= 94) || (x >= 124 && x <= 126) || (x >= 158 && x <= 160);
-            if (pit) continue;
+            if (IsPit(spec, x)) continue;
             int variant = (x * 92821 + 7) & 0x7fffffff;
             tilemap.SetTile(new Vector3Int(x, 0, 0), groundTiles[variant % groundTiles.Length]);
             // Fill well below the camera's bottom edge so no sky shows underneath the ground.
             for (int y = -1; y >= -5; y--)
             {
                 int hash = variant + (y + 8) * 977;
-                tilemap.SetTile(new Vector3Int(x, y, 0), dirtTiles[hash % dirtTiles.Length]);
+                tilemap.SetTile(new Vector3Int(x, y, 0), fillTiles[hash % fillTiles.Length]);
             }
         }
-        PaintRow(tilemap, platformTile, 8, 12, 3);
-        PaintRow(tilemap, platformTile, 30, 34, 4);
-        PaintRow(tilemap, platformTile, 42, 46, 2);
-        PaintRow(tilemap, platformTile, 64, 68, 3);
-        PaintRow(tilemap, platformTile, 84, 88, 2);
-        PaintRow(tilemap, platformTile, 100, 104, 3);
-        PaintRow(tilemap, platformTile, 132, 136, 2);
-        PaintRow(tilemap, platformTile, 136, 140, 3);
-        PaintRow(tilemap, platformTile, 170, 174, 3);
-        PaintRow(tilemap, platformTile, 176, 180, 2);
+        foreach (int[] row in spec.platforms) PaintRow(tilemap, platformTile, row[0], row[1], row[2]);
 
-        CreateDecorations();
-        CreateDepthShade();
-        CreatePitBacking();
+        CreateDecorations(spec);
+        CreateDepthShade(spec);
+        CreatePitBacking(spec);
 
         // Player: run, jump, gun with muzzle and ground check.
         GameObject playerGo = new GameObject("Player");
-        playerGo.transform.position = new Vector3(0f, 2f, 0f);
+        playerGo.transform.position = new Vector3(spec.playerX, spec.playerY, 0f);
         SpriteRenderer playerRenderer = playerGo.AddComponent<SpriteRenderer>();
-        playerRenderer.sprite = playerFrames[0];
+        playerRenderer.sprite = shared.playerFrames[0];
         playerRenderer.sortingOrder = 10;
         Rigidbody2D playerBody = playerGo.AddComponent<Rigidbody2D>();
         playerBody.interpolation = RigidbodyInterpolation2D.Interpolate;
@@ -200,7 +476,7 @@ public static class PrototypeBuilder
         controller.maxHealth = 5;
         controller.invulnerableTime = 1.2f;
         CharacterAnimator playerAnimator = playerGo.AddComponent<CharacterAnimator>();
-        playerAnimator.frames = playerFrames;
+        playerAnimator.frames = shared.playerFrames;
         playerAnimator.fps = 8f;
 
         GameObject groundCheck = new GameObject("GroundCheck");
@@ -214,56 +490,77 @@ public static class PrototypeBuilder
         muzzle.transform.localPosition = new Vector3(0.42f, -0.08f, 0f);
 
         Gun gun = playerGo.AddComponent<Gun>();
-        gun.weapon = weapon;
-        gun.bulletPrefab = bulletPrefab;
+        gun.weapon = shared.weapon;
+        gun.bulletPrefab = shared.bulletPrefab;
         gun.muzzle = muzzle.transform;
         controller.gun = gun;
         controller.muzzle = muzzle.transform;
 
-        // Ground top is y=1.0; enemy sprite is 22 px (1.375 units) tall, so its centre sits 0.6875 above the floor.
-        // Platform top is y=4.0 for the first platform.
-        // Ground patrols (y=1.69). Patrol ranges are kept clear of the pits.
-        CreateEnemy(enemyFrames, new Vector3(14f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(28f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(40f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(50f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(62f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(76f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(88f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(100f, 1.69f, 0f), 3f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(108f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(114f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(130f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(144f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(152f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(164f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(180f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(184f, 1.69f, 0f), 2f, enemyBulletPrefab, enemyBarSprite);
-
-        // High platforms (row 3, top y=4.0).
-        CreateEnemy(enemyFrames, new Vector3(10f, 4.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(66f, 4.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(102f, 4.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(138f, 4.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(172f, 4.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
-
-        // Low platforms (row 2, top y=3.0).
-        CreateEnemy(enemyFrames, new Vector3(44f, 3.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(86f, 3.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(134f, 3.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
-        CreateEnemy(enemyFrames, new Vector3(178f, 3.69f, 0f), 1.5f, enemyBulletPrefab, enemyBarSprite);
+        foreach (Vector3 spawn in spec.enemies)
+        {
+            CreateEnemy(spec.enemyFrames, new Vector3(spawn.x, spawn.y, 0f), spawn.z,
+                shared.enemyBulletPrefab, shared.enemyBarSprite);
+        }
 
         CameraFollow2D follow = cam.gameObject.AddComponent<CameraFollow2D>();
         follow.target = playerGo.transform;
-        follow.minX = -20f;
-        follow.maxX = 180f;
-        follow.maxY = 5f;
+        follow.minX = spec.camMinX;
+        follow.maxX = spec.camMaxX;
+        follow.maxY = spec.camMaxY;
 
         // Invisible walls keep the player inside the painted level.
-        CreateInvisibleWall(-19f, 8f);
-        CreateInvisibleWall(188f, 8f);
+        CreateInvisibleWall(spec.wallLeftX, 8f);
+        CreateInvisibleWall(spec.wallRightX, 8f);
 
-        // Touch UI: Screen Space Overlay canvas, safe-area panel, joystick, two buttons, FPS label.
+        GameObject safeGo = SetupTouchUI(shared, cam, controller, shared.playerFrames[0], spec.stageLabel, playerGo.transform);
+        CreateGoal(spec, safeGo.transform, shared);
+
+        if (spec.snowfall && spec.snowflakeSprite != null)
+        {
+            GameObject snowGo = new GameObject("Snowfall");
+            Snowfall snow = snowGo.AddComponent<Snowfall>();
+            snow.flakeSprite = spec.snowflakeSprite;
+        }
+
+        new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+        new GameObject("GameSetup", typeof(FrameRateSetup), typeof(PhysicsSetup));
+
+        EditorSceneManager.SaveScene(scene, spec.scenePath);
+        AssetDatabase.SaveAssets();
+        Debug.Log("[PrototypeBuilder] built " + spec.scenePath);
+    }
+
+    static void BuildApk(bool development, string relativePath)
+    {
+        EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+
+        string outputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", relativePath));
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+
+        BuildPlayerOptions options = new BuildPlayerOptions
+        {
+            scenes = new[] { Stage1Path, Stage2Path },
+            locationPathName = outputPath,
+            target = BuildTarget.Android,
+            options = development
+                ? BuildOptions.Development | BuildOptions.AllowDebugging
+                : BuildOptions.None
+        };
+
+        BuildReport report = BuildPipeline.BuildPlayer(options);
+        BuildSummary summary = report.summary;
+        Debug.Log("[PrototypeBuilder] APK development=" + development + " result=" + summary.result
+            + " size=" + summary.totalSize + " output=" + outputPath);
+        if (summary.result != BuildResult.Succeeded)
+        {
+            throw new Exception("APK build failed: " + summary.result);
+        }
+    }
+
+    // Touch UI: Screen Space Overlay canvas, safe-area panel, joystick, two buttons, stage label, FPS label.
+    static GameObject SetupTouchUI(Shared shared, Camera cam, PlayerController controller, Sprite portrait,
+        string stageLabel, Transform player)
+    {
         GameObject canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         Canvas canvas = canvasGo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -272,13 +569,7 @@ public static class PrototypeBuilder
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
 
-        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        Sprite uiCircle = PixelArt.UiCircle("ui_circle", 256);
-        Sprite uiRing = PixelArt.UiRing("ui_ring", 256, 7f);
-        Sprite uiKnob = PixelArt.UiCircle("ui_knob", 128);
-        Sprite uiButton = PixelArt.UiRoundedRect("ui_button", 256, 60f);
-        Sprite uiArrow = PixelArt.UiArrow();
-        Sprite uiBulletIcon = PixelArt.UiBulletIcon();
+        Font font = shared.font;
 
         GameObject safeGo = new GameObject("SafeArea", typeof(RectTransform), typeof(SafeAreaFitter));
         safeGo.transform.SetParent(canvasGo.transform, false);
@@ -299,8 +590,28 @@ public static class PrototypeBuilder
         fpsText.raycastTarget = false;
         FpsCounter fpsCounter = fpsGo.GetComponent<FpsCounter>();
         fpsCounter.worldCamera = cam;
-        fpsCounter.player = playerGo.transform;
+        fpsCounter.player = player;
         fpsCounter.showDebugInfo = false;
+
+        // Stage label, top centre.
+        GameObject stageGo = new GameObject("StageLabel", typeof(RectTransform), typeof(Text), typeof(Shadow));
+        stageGo.transform.SetParent(safeGo.transform, false);
+        RectTransform stageRect = (RectTransform)stageGo.transform;
+        stageRect.anchorMin = new Vector2(0.5f, 1f);
+        stageRect.anchorMax = new Vector2(0.5f, 1f);
+        stageRect.pivot = new Vector2(0.5f, 1f);
+        stageRect.anchoredPosition = new Vector2(0f, -24f);
+        stageRect.sizeDelta = new Vector2(600f, 60f);
+        Text stageText = stageGo.GetComponent<Text>();
+        stageText.font = font;
+        stageText.text = stageLabel;
+        stageText.fontSize = 34;
+        stageText.alignment = TextAnchor.MiddleCenter;
+        stageText.color = new Color(1f, 1f, 1f, 0.9f);
+        stageText.raycastTarget = false;
+        Shadow stageShadow = stageGo.GetComponent<Shadow>();
+        stageShadow.effectColor = new Color(0f, 0f, 0f, 0.65f);
+        stageShadow.effectDistance = new Vector2(2f, -2f);
 
         // Player health bar, top-left under the FPS readout: portrait plus a red fill that shrinks left to right.
         GameObject healthGo = new GameObject("HealthBar", typeof(RectTransform), typeof(PlayerHealthBar));
@@ -321,7 +632,7 @@ public static class PrototypeBuilder
         portraitRect.anchoredPosition = Vector2.zero;
         portraitRect.sizeDelta = new Vector2(36f, 44f);
         Image portraitImage = portraitGo.GetComponent<Image>();
-        portraitImage.sprite = playerFrames[0];
+        portraitImage.sprite = portrait;
         portraitImage.preserveAspect = true;
         portraitImage.raycastTarget = false;
 
@@ -334,7 +645,7 @@ public static class PrototypeBuilder
         barBgRect.anchoredPosition = new Vector2(44f, 0f);
         barBgRect.sizeDelta = new Vector2(248f, -14f);
         Image barBgImage = barBgGo.GetComponent<Image>();
-        barBgImage.sprite = uiButton;
+        barBgImage.sprite = shared.uiButton;
         barBgImage.color = new Color(0.05f, 0.04f, 0.08f, 0.6f);
         barBgImage.raycastTarget = false;
 
@@ -346,7 +657,7 @@ public static class PrototypeBuilder
         healthFillRect.offsetMin = new Vector2(5f, 5f);
         healthFillRect.offsetMax = new Vector2(-5f, -5f);
         Image healthFillImage = healthFillGo.GetComponent<Image>();
-        healthFillImage.sprite = uiButton;
+        healthFillImage.sprite = shared.uiButton;
         healthFillImage.color = new Color(0.92f, 0.28f, 0.20f, 1f);
         healthFillImage.type = Image.Type.Filled;
         healthFillImage.fillMethod = Image.FillMethod.Horizontal;
@@ -366,7 +677,7 @@ public static class PrototypeBuilder
         stickRect.pivot = new Vector2(0.5f, 0.5f);
         stickRect.anchoredPosition = Vector2.zero;
         Image stickImage = stickGo.GetComponent<Image>();
-        stickImage.sprite = uiCircle;
+        stickImage.sprite = shared.uiCircle;
         stickImage.color = new Color(1f, 1f, 1f, 0.12f);
         DpSize stickSize = stickGo.GetComponent<DpSize>();
         stickSize.canvas = canvas;
@@ -389,7 +700,7 @@ public static class PrototypeBuilder
         ringRect.anchorMax = new Vector2(0.5f, 0.5f);
         ringRect.pivot = new Vector2(0.5f, 0.5f);
         Image ringImage = ringGo.GetComponent<Image>();
-        ringImage.sprite = uiRing;
+        ringImage.sprite = shared.uiRing;
         ringImage.color = new Color(1f, 1f, 1f, 0.34f);
         ringImage.raycastTarget = false;
         DpSize ringSize = ringGo.GetComponent<DpSize>();
@@ -398,7 +709,7 @@ public static class PrototypeBuilder
         ringSize.heightDp = 150f;
 
         Image knobImage = knobGo.GetComponent<Image>();
-        knobImage.sprite = uiKnob;
+        knobImage.sprite = shared.uiKnob;
         knobImage.color = new Color(1f, 1f, 1f, 0.72f);
         knobImage.raycastTarget = false;
         DpSize knobSize = knobGo.GetComponent<DpSize>();
@@ -408,10 +719,10 @@ public static class PrototypeBuilder
         stickGo.GetComponent<OnScreenStick>().knob = knobRect;
 
         // Action buttons, bottom-right, 92 dp each with 10 dp gap (offsets are measured from the bottom-right anchor).
-        CreateButton(safeGo.transform, canvas, font, uiCircle, uiArrow, "JumpButton", OnScreenButtonType.Jump, "JUMP",
+        CreateButton(safeGo.transform, canvas, font, shared.uiCircle, shared.uiArrow, "JumpButton", OnScreenButtonType.Jump, "JUMP",
             new Color(0.16f, 0.42f, 0.24f, 0.72f), new Color(0.32f, 0.62f, 0.36f, 0.42f),
             new Vector2(-68f, 68f), 92f, 36f, 30f, 12f);
-        CreateButton(safeGo.transform, canvas, font, uiCircle, uiBulletIcon, "FireButton", OnScreenButtonType.Fire, "FIRE",
+        CreateButton(safeGo.transform, canvas, font, shared.uiCircle, shared.uiBulletIcon, "FireButton", OnScreenButtonType.Fire, "FIRE",
             new Color(0.66f, 0.19f, 0.14f, 0.72f), new Color(0.86f, 0.34f, 0.23f, 0.42f),
             new Vector2(-170f, 68f), 92f, 46f, 19f, 14f);
 
@@ -424,7 +735,7 @@ public static class PrototypeBuilder
         autoRect.pivot = new Vector2(0.5f, 0.5f);
         autoRect.anchoredPosition = Vector2.zero;
         Image autoImage = autoGo.GetComponent<Image>();
-        autoImage.sprite = uiButton;
+        autoImage.sprite = shared.uiButton;
         autoImage.color = new Color(1f, 1f, 1f, 0.28f);
         DpSize autoSize = autoGo.GetComponent<DpSize>();
         autoSize.canvas = canvas;
@@ -445,37 +756,56 @@ public static class PrototypeBuilder
         autoToggle.label = autoText;
         autoToggle.background = autoImage;
 
-        new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
-        new GameObject("GameSetup", typeof(FrameRateSetup), typeof(PhysicsSetup));
-
-        PixelArt.WritePreview();
-
-        EditorSceneManager.SaveScene(scene, ScenePath);
-        AssetDatabase.SaveAssets();
+        return safeGo;
     }
 
-    static void BuildApk()
+    static void CreateGoal(LevelSpec spec, Transform uiParent, Shared shared)
     {
-        EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+        if (spec.goalSprite == null) return;
 
-        string outputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", ApkRelativePath));
-        Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+        GameObject go = new GameObject("Goal");
+        go.transform.position = spec.goalPosition;
+        SpriteRenderer renderer = go.AddComponent<SpriteRenderer>();
+        renderer.sprite = spec.goalSprite;
+        renderer.sortingOrder = 5;
 
-        BuildPlayerOptions options = new BuildPlayerOptions
+        BoxCollider2D trigger = go.AddComponent<BoxCollider2D>();
+        trigger.isTrigger = true;
+        trigger.size = new Vector2(1.4f, 3f);
+
+        LevelGoal goal = go.AddComponent<LevelGoal>();
+        goal.nextScene = spec.nextScene;
+        if (string.IsNullOrEmpty(spec.nextScene) && spec.stageClearLabel)
         {
-            scenes = new[] { ScenePath },
-            locationPathName = outputPath,
-            target = BuildTarget.Android,
-            options = BuildOptions.Development | BuildOptions.AllowDebugging
-        };
-
-        BuildReport report = BuildPipeline.BuildPlayer(options);
-        BuildSummary summary = report.summary;
-        Debug.Log("[PrototypeBuilder] APK result=" + summary.result + " size=" + summary.totalSize + " output=" + outputPath);
-        if (summary.result != BuildResult.Succeeded)
-        {
-            throw new Exception("APK build failed: " + summary.result);
+            goal.clearMessage = CreateClearLabel(uiParent, shared.font);
         }
+    }
+
+    // Hidden overlay shown by the final stage's goal.
+    static GameObject CreateClearLabel(Transform parent, Font font)
+    {
+        GameObject go = new GameObject("ClearMessage", typeof(RectTransform), typeof(Text), typeof(Shadow));
+        go.transform.SetParent(parent, false);
+        RectTransform rect = (RectTransform)go.transform;
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(1400f, 220f);
+
+        Text text = go.GetComponent<Text>();
+        text.font = font;
+        text.text = "STAGE CLEAR";
+        text.fontSize = 96;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = new Color(1f, 0.9f, 0.4f);
+        text.raycastTarget = false;
+
+        Shadow shadow = go.GetComponent<Shadow>();
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.8f);
+        shadow.effectDistance = new Vector2(4f, -4f);
+
+        go.SetActive(false);
+        return go;
     }
 
     static void CreateButton(Transform parent, Canvas canvas, Font font, Sprite circle, Sprite icon, string name,
@@ -615,10 +945,10 @@ public static class PrototypeBuilder
         wall.size = new Vector2(1f, 24f);
     }
 
-    // Sky, clouds, mountain range, jungle treeline and a soft vignette.
-    static void CreateBackground(Camera cam)
+    // Sky, clouds, mountain range, treeline and a soft vignette.
+    static void CreateBackground(Camera cam, Shared shared, LevelSpec spec)
     {
-        Sprite skySprite = PixelArt.SkySprite();
+        Sprite skySprite = spec.skySprite;
         GameObject skyGo = new GameObject("Sky");
         skyGo.transform.SetParent(cam.transform, false);
         skyGo.transform.localPosition = new Vector3(0f, 0f, 5f);
@@ -630,7 +960,7 @@ public static class PrototypeBuilder
             15f / (skySprite.rect.height / 16f),
             1f);
 
-        Sprite cloudSprite = PixelArt.CloudSprite(5001);
+        Sprite cloudSprite = shared.cloudSprite;
         GameObject cloudsGo = new GameObject("Clouds");
         ParallaxLayer cloudParallax = cloudsGo.AddComponent<ParallaxLayer>();
         cloudParallax.cameraTransform = cam.transform;
@@ -649,7 +979,7 @@ public static class PrototypeBuilder
             cloudRenderer.sortingOrder = -980;
         }
 
-        Sprite mountainSprite = PixelArt.MountainSprite();
+        Sprite mountainSprite = spec.mountainSprite;
         GameObject mountainsGo = new GameObject("Mountains");
         mountainsGo.transform.position = new Vector3(20f, 3f, 0f);
         SpriteRenderer mountainRenderer = mountainsGo.AddComponent<SpriteRenderer>();
@@ -659,7 +989,7 @@ public static class PrototypeBuilder
         mountainParallax.cameraTransform = cam.transform;
         mountainParallax.factor = 0.85f;
 
-        Sprite treelineSprite = PixelArt.TreelineSprite();
+        Sprite treelineSprite = spec.treelineSprite;
         GameObject treelineGo = new GameObject("Treeline");
         treelineGo.transform.position = new Vector3(20f, 3.3f, 0f);
         SpriteRenderer treelineRenderer = treelineGo.AddComponent<SpriteRenderer>();
@@ -669,7 +999,7 @@ public static class PrototypeBuilder
         treelineParallax.cameraTransform = cam.transform;
         treelineParallax.factor = 0.6f;
 
-        Sprite vignetteSprite = PixelArt.VignetteSprite();
+        Sprite vignetteSprite = shared.vignetteSprite;
         GameObject vignetteGo = new GameObject("Vignette");
         vignetteGo.transform.SetParent(cam.transform, false);
         vignetteGo.transform.localPosition = new Vector3(0f, 0f, 4f);
@@ -680,9 +1010,9 @@ public static class PrototypeBuilder
     }
 
     // Dark quad behind the tilemap: pit shafts otherwise show the camera-space sky as a bright column.
-    static void CreatePitBacking()
+    static void CreatePitBacking(LevelSpec spec)
     {
-        Sprite solid = PixelArt.SolidSprite("pit_backing", new Color(0.10f, 0.07f, 0.05f, 1f));
+        Sprite solid = spec.pitBackingSprite;
         GameObject go = new GameObject("PitBacking");
         go.transform.position = new Vector3(80f, -2.5f, 0f);
         SpriteRenderer renderer = go.AddComponent<SpriteRenderer>();
@@ -695,9 +1025,9 @@ public static class PrototypeBuilder
     }
 
     // Darkens the dirt towards the bottom of the screen; one gradient quad avoids per-tile banding.
-    static void CreateDepthShade()
+    static void CreateDepthShade(LevelSpec spec)
     {
-        Sprite shade = PixelArt.DepthShadeSprite();
+        Sprite shade = spec.depthShadeSprite;
         GameObject go = new GameObject("DepthShade");
         go.transform.position = new Vector3(80f, -1.5f, 0f);
         SpriteRenderer renderer = go.AddComponent<SpriteRenderer>();
@@ -709,44 +1039,52 @@ public static class PrototypeBuilder
             1f);
     }
 
-    // Grass tufts, bushes and rocks along the ground line. Purely decorative, no colliders.
-    static void CreateDecorations()
+    // Drifts, bushes, rocks and (on the snow stage) pines along the ground line. No colliders.
+    static void CreateDecorations(LevelSpec spec)
     {
-        Sprite[] tufts = PixelArt.TuftSprites();
-        Sprite[] bushes = PixelArt.BushSprites();
-        Sprite rock = PixelArt.RockSprite();
-
         GameObject root = new GameObject("Decorations");
-        System.Random rng = new System.Random(2024);
+        System.Random rng = new System.Random(spec.decoSeed);
 
-        float x = -38f;
-        while (x < 194f)
+        float x = spec.decoFromX;
+        while (x < spec.decoToX)
         {
-            bool pit = (x >= 21.5f && x <= 25.5f) || (x >= 55.5f && x <= 59.5f)
-                || (x >= 91.5f && x <= 95.5f) || (x >= 123.5f && x <= 127.5f)
-                || (x >= 157.5f && x <= 161.5f);
-            if (!pit)
+            if (!IsNearPit(spec, x))
             {
                 int roll = rng.Next(100);
-                if (roll < 55)
+                if (roll < 55 && spec.decoSmall.Length > 0)
                 {
-                    Sprite sprite = tufts[rng.Next(tufts.Length)];
+                    Sprite sprite = spec.decoSmall[rng.Next(spec.decoSmall.Length)];
                     float scale = 0.9f + (float)rng.NextDouble() * 0.6f;
                     PlaceDecoration(root, sprite, new Vector3(x, 1f + sprite.bounds.extents.y * scale, 0f), 2, scale);
                 }
-                else if (roll < 78)
+                else if (roll < 78 && spec.decoBush.Length > 0)
                 {
-                    Sprite sprite = bushes[rng.Next(bushes.Length)];
+                    Sprite sprite = spec.decoBush[rng.Next(spec.decoBush.Length)];
                     float scale = 0.9f + (float)rng.NextDouble() * 0.5f;
                     PlaceDecoration(root, sprite, new Vector3(x, 1f + sprite.bounds.extents.y * scale, 0f), 3, scale);
                 }
-                else if (roll < 92)
+                else if (roll < 92 && spec.decoRock != null)
                 {
                     float scale = 0.8f + (float)rng.NextDouble() * 0.7f;
-                    PlaceDecoration(root, rock, new Vector3(x, 1f + rock.bounds.extents.y * scale, 0f), 2, scale);
+                    PlaceDecoration(root, spec.decoRock, new Vector3(x, 1f + spec.decoRock.bounds.extents.y * scale, 0f), 2, scale);
                 }
             }
             x += 1.4f + (float)rng.NextDouble() * 2.2f;
+        }
+
+        if (spec.decoPine != null)
+        {
+            float px = spec.decoFromX + 6f;
+            while (px < spec.decoToX)
+            {
+                if (!IsNearPit(spec, px) && rng.NextDouble() < 0.55)
+                {
+                    float scale = 0.9f + (float)rng.NextDouble() * 0.5f;
+                    PlaceDecoration(root, spec.decoPine,
+                        new Vector3(px, 1f + spec.decoPine.bounds.extents.y * scale, 0f), 4, scale);
+                }
+                px += 10f + (float)rng.NextDouble() * 10f;
+            }
         }
     }
 
@@ -759,6 +1097,25 @@ public static class PrototypeBuilder
         SpriteRenderer renderer = go.AddComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = sortingOrder;
+    }
+
+    static bool IsPit(LevelSpec spec, int x)
+    {
+        foreach (Vector2Int pit in spec.pits)
+        {
+            if (x >= pit.x && x <= pit.y) return true;
+        }
+        return false;
+    }
+
+    // Pits plus a small margin, so decorations never float over a hole.
+    static bool IsNearPit(LevelSpec spec, float x)
+    {
+        foreach (Vector2Int pit in spec.pits)
+        {
+            if (x >= pit.x - 1.5f && x <= pit.y + 1.5f) return true;
+        }
+        return false;
     }
 
     static Bullet CreateBulletPrefab(Sprite sprite)
@@ -803,12 +1160,77 @@ public static class PrototypeBuilder
         return prefab.GetComponent<EnemyBullet>();
     }
 
-    // Read-only diagnostic: open the stage and report every sprite reference and the GUID the editor assigns to its PNG.
+    // Read-only diagnostic: open both stages and report tilemap, sprite and goal wiring.
+    public static void VerifyBatch()
+    {
+        try
+        {
+            VerifyLevel(Stage1Path);
+            VerifyLevel(Stage2Path);
+            Debug.Log("[Verify] done");
+            EditorApplication.Exit(0);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("[Verify] failed: " + e);
+            EditorApplication.Exit(1);
+        }
+    }
+
+    static void VerifyLevel(string path)
+    {
+        Scene scene = EditorSceneManager.OpenScene(path);
+
+        int spriteCount = 0;
+        int missingSprites = 0;
+        foreach (SpriteRenderer sr in UnityEngine.Object.FindObjectsOfType<SpriteRenderer>())
+        {
+            spriteCount++;
+            if (sr.sprite == null) missingSprites++;
+        }
+
+        Tilemap tilemap = UnityEngine.Object.FindObjectOfType<Tilemap>();
+        int tileCount = 0;
+        int missingTiles = 0;
+        string firstTile = "none";
+        if (tilemap != null)
+        {
+            foreach (Vector3Int pos in tilemap.cellBounds.allPositionsWithin)
+            {
+                TileBase tile = tilemap.GetTile(pos);
+                if (tile == null) continue;
+                tileCount++;
+                Tile t = tile as Tile;
+                if (t == null || t.sprite == null)
+                {
+                    missingTiles++;
+                }
+                else if (firstTile == "none")
+                {
+                    firstTile = t.sprite.name;
+                }
+            }
+        }
+
+        LevelGoal goal = UnityEngine.Object.FindObjectOfType<LevelGoal>();
+        Snowfall snow = UnityEngine.Object.FindObjectOfType<Snowfall>();
+
+        Debug.Log("[Verify] " + path
+            + " sprites=" + spriteCount
+            + " missingSprites=" + missingSprites
+            + " tiles=" + tileCount
+            + " missingTiles=" + missingTiles
+            + " firstTile=" + firstTile
+            + " goal=" + (goal != null ? (goal.nextScene.Length > 0 ? goal.nextScene : "clear") : "none")
+            + " snowfall=" + (snow != null ? (snow.flakeSprite != null ? snow.flakeSprite.name : "NULL") : "none"));
+    }
+
+    // Read-only diagnostic: open the first stage and report every sprite reference and the GUID the editor assigns to its PNG.
     public static void DiagnoseBatch()
     {
         try
         {
-            EditorSceneManager.OpenScene(ScenePath);
+            EditorSceneManager.OpenScene(Stage1Path);
             foreach (SpriteRenderer sr in UnityEngine.Object.FindObjectsOfType<SpriteRenderer>())
             {
                 string assetPath = sr.sprite == null ? "NULL" : AssetDatabase.GetAssetPath(sr.sprite);
@@ -828,23 +1250,33 @@ public static class PrototypeBuilder
     static WeaponData CreateWeapon()
     {
         string path = DataDir + "/DefaultWeapon.asset";
-        WeaponData weapon = ScriptableObject.CreateInstance<WeaponData>();
+        WeaponData weapon = AssetDatabase.LoadAssetAtPath<WeaponData>(path);
+        if (weapon == null)
+        {
+            weapon = ScriptableObject.CreateInstance<WeaponData>();
+            AssetDatabase.CreateAsset(weapon, path);
+        }
         weapon.fireRate = 8f;
         weapon.bulletSpeed = 12f;
         weapon.bulletLifetime = 1.2f;
         weapon.damage = 1;
-        AssetDatabase.CreateAsset(weapon, path);
-        return AssetDatabase.LoadAssetAtPath<WeaponData>(path);
+        EditorUtility.SetDirty(weapon);
+        return weapon;
     }
 
     static Tile CreateTile(Sprite sprite, string name)
     {
         string path = TileDir + "/" + name + ".asset";
-        Tile tile = ScriptableObject.CreateInstance<Tile>();
+        Tile tile = AssetDatabase.LoadAssetAtPath<Tile>(path);
+        if (tile == null)
+        {
+            tile = ScriptableObject.CreateInstance<Tile>();
+            AssetDatabase.CreateAsset(tile, path);
+        }
         tile.sprite = sprite;
         tile.colliderType = Tile.ColliderType.Grid;
-        AssetDatabase.CreateAsset(tile, path);
-        return AssetDatabase.LoadAssetAtPath<Tile>(path);
+        EditorUtility.SetDirty(tile);
+        return tile;
     }
 
     static void PaintRow(Tilemap map, Tile tile, int fromX, int toX, int y)
