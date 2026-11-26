@@ -16,19 +16,25 @@ public class Enemy : MonoBehaviour
     [Header("Health bar")]
     public Transform healthFill;
 
+    [Header("Death")]
+    public SpriteBurst deathBurst;
+
     int health;
     float originX;
     int direction = 1;
     float nextFireTime;
     float fullBarScale;
     float fullBarWidth;
+    float flashTimer;
     CharacterAnimator animator;
+    SpriteRenderer spriteRenderer;
 
     void Awake()
     {
         health = maxHealth;
         originX = transform.position.x;
         animator = GetComponent<CharacterAnimator>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
         if (healthFill != null)
         {
             fullBarScale = healthFill.localScale.x;
@@ -44,6 +50,12 @@ public class Enemy : MonoBehaviour
 
     void Update()
     {
+        if (flashTimer > 0f)
+        {
+            flashTimer -= Time.deltaTime;
+            if (flashTimer <= 0f && spriteRenderer != null) spriteRenderer.color = Color.white;
+        }
+
         PlayerController player = PlayerController.Instance;
         bool aiming = player != null
             && Vector2.Distance(transform.position, player.transform.position) <= fireRange;
@@ -103,6 +115,18 @@ public class Enemy : MonoBehaviour
     public void TakeDamage(int amount)
     {
         health -= amount;
+
+        if (health > 0)
+        {
+            // Brief red tint so hits read clearly even without hit-stop.
+            flashTimer = 0.08f;
+            if (spriteRenderer != null) spriteRenderer.color = new Color(1f, 0.55f, 0.55f);
+        }
+        else if (deathBurst != null)
+        {
+            Instantiate(deathBurst, transform.position, Quaternion.identity);
+        }
+
         RefreshBar();
         if (health <= 0) gameObject.SetActive(false);
     }

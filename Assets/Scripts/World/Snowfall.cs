@@ -10,6 +10,7 @@ public class Snowfall : MonoBehaviour
     public float height = 16f;
     public float speedMin = 0.5f;
     public float speedMax = 1.5f;
+    public float windX;
 
     Transform camTransform;
     Transform[] flakes;
@@ -65,7 +66,7 @@ public class Snowfall : MonoBehaviour
         {
             Vector3 p = flakes[i].localPosition;
             p.y -= speeds[i] * Time.deltaTime;
-            p.x += Mathf.Sin(t * 0.8f + phases[i]) * drifts[i] * Time.deltaTime;
+            p.x += (windX + Mathf.Sin(t * 0.8f + phases[i]) * drifts[i]) * Time.deltaTime;
 
             if (p.y < -height * 0.5f)
             {

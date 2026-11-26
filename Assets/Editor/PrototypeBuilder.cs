@@ -24,6 +24,7 @@ public static class PrototypeBuilder
     const string DataDir = "Assets/Data";
     const string Stage1Path = "Assets/Scenes/Stage01.unity";
     const string Stage2Path = "Assets/Scenes/Stage02.unity";
+    const string Stage3Path = "Assets/Scenes/Stage03.unity";
     const string ApkRelativePath = "Builds/android/Prototype.apk";
 
     // Art, prefabs and UI sprites every stage shares; generated once per run.
@@ -37,6 +38,8 @@ public static class PrototypeBuilder
         public Sprite cloudSprite;
         public Sprite vignetteSprite;
         public Sprite goalFlagSprite;
+        public Sprite muzzleFlashSprite;
+        public SpriteBurst deathBurstPrefab;
         public Font font;
         public Sprite uiCircle;
         public Sprite uiRing;
@@ -87,6 +90,11 @@ public static class PrototypeBuilder
         public string nextScene;
         public bool stageClearLabel;
 
+        // Difficulty tuning: later stages fire faster and from further away.
+        public float enemyFireInterval = 2.6f;
+        public float enemyFireRange = 10f;
+        public int enemyHealth = 4;
+
         public Sprite[] decoSmall;
         public Sprite[] decoBush;
         public Sprite decoRock;
@@ -95,8 +103,12 @@ public static class PrototypeBuilder
         public float decoFromX;
         public float decoToX;
 
-        public bool snowfall;
-        public Sprite snowflakeSprite;
+        public bool ambientParticles;
+        public Sprite ambientSprite;
+        public int ambientCount = 90;
+        public float ambientSpeedMin = 0.5f;
+        public float ambientSpeedMax = 1.5f;
+        public float ambientWindX;
     }
 
     public static void SetupBatch()
@@ -172,7 +184,8 @@ public static class PrototypeBuilder
         EditorBuildSettings.scenes = new[]
         {
             new EditorBuildSettingsScene(Stage1Path, true),
-            new EditorBuildSettingsScene(Stage2Path, true)
+            new EditorBuildSettingsScene(Stage2Path, true),
+            new EditorBuildSettingsScene(Stage3Path, true)
         };
         AssetDatabase.SaveAssets();
     }
@@ -195,6 +208,8 @@ public static class PrototypeBuilder
             cloudSprite = PixelArt.CloudSprite(5001),
             vignetteSprite = PixelArt.VignetteSprite(),
             goalFlagSprite = PixelArt.GoalFlagSprite(),
+            muzzleFlashSprite = PixelArt.MuzzleFlashSprite(),
+            deathBurstPrefab = CreateBurstPrefab(),
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"),
             uiCircle = PixelArt.UiCircle("ui_circle", 256),
             uiRing = PixelArt.UiRing("ui_ring", 256, 7f),
@@ -206,6 +221,7 @@ public static class PrototypeBuilder
 
         BuildLevel(Stage1Spec(shared), shared);
         BuildLevel(Stage2Spec(shared), shared);
+        BuildLevel(Stage3Spec(shared), shared);
 
         PixelArt.WritePreview();
     }
@@ -275,6 +291,10 @@ public static class PrototypeBuilder
             camMinX = -20f,
             camMaxX = 180f,
             camMaxY = 5f,
+
+            enemyFireInterval = 2.6f,
+            enemyFireRange = 10f,
+            enemyHealth = 4,
 
             goalSprite = shared.goalFlagSprite,
             goalPosition = new Vector3(185f, 2f, 0f),
@@ -365,10 +385,14 @@ public static class PrototypeBuilder
             camMaxX = 180f,
             camMaxY = 5f,
 
+            enemyFireInterval = 2.45f,
+            enemyFireRange = 11f,
+            enemyHealth = 4,
+
             goalSprite = shared.goalFlagSprite,
             goalPosition = new Vector3(185f, 2f, 0f),
-            nextScene = "",
-            stageClearLabel = true,
+            nextScene = "Stage03",
+            stageClearLabel = false,
 
             decoSmall = PixelArt.SnowDriftSprites(),
             decoBush = PixelArt.SnowBushSprites(),
@@ -378,8 +402,116 @@ public static class PrototypeBuilder
             decoFromX = -38f,
             decoToX = 194f,
 
-            snowfall = true,
-            snowflakeSprite = PixelArt.SnowflakeSprite()
+            ambientParticles = true,
+            ambientSprite = PixelArt.SnowflakeSprite(),
+            ambientCount = 70,
+            ambientSpeedMin = 0.5f,
+            ambientSpeedMax = 1.5f,
+            ambientWindX = 0f
+        };
+    }
+
+    // Level 3: desert. Sandstone mesas, dunes with cacti, warm palette and drifting dust.
+    static LevelSpec Stage3Spec(Shared shared)
+    {
+        return new LevelSpec
+        {
+            scenePath = Stage3Path,
+            stageLabel = "STAGE 3",
+
+            groundTileName = "SandGroundTop",
+            fillTileName = "SandFill",
+            platformTileName = "SandstonePlatform",
+            groundTops = PixelArt.SandGroundTops(),
+            fillTiles = PixelArt.SandFills(),
+            platformSprite = PixelArt.SandstonePlatformSprite(),
+            pitBackingSprite = PixelArt.SolidSprite("pit_backing_desert", new Color(0.12f, 0.07f, 0.03f, 1f)),
+            depthShadeSprite = PixelArt.DesertDepthShadeSprite(),
+
+            enemyFrames = PixelArt.DesertEnemyFrames(),
+            skySprite = PixelArt.DesertSkySprite(),
+            mountainSprite = PixelArt.DesertMesaSprite(),
+            treelineSprite = PixelArt.DesertTreelineSprite(),
+            cameraBackground = new Color(0.80f, 0.72f, 0.55f),
+            lightTint = new Color(1f, 0.96f, 0.88f),
+
+            paintFromX = -40,
+            paintToX = 199,
+            pits = new[]
+            {
+                new Vector2Int(20, 22),
+                new Vector2Int(44, 46),
+                new Vector2Int(70, 72),
+                new Vector2Int(96, 98),
+                new Vector2Int(124, 126),
+                new Vector2Int(152, 154)
+            },
+            platforms = new[]
+            {
+                new[] { 6, 10, 3 },
+                new[] { 12, 16, 4 },
+                new[] { 26, 30, 2 },
+                new[] { 32, 36, 3 },
+                new[] { 50, 54, 2 },
+                new[] { 56, 60, 4 },
+                new[] { 64, 68, 3 },
+                new[] { 78, 82, 2 },
+                new[] { 84, 88, 4 },
+                new[] { 100, 104, 3 },
+                new[] { 106, 110, 2 },
+                new[] { 116, 120, 4 },
+                new[] { 130, 134, 2 },
+                new[] { 136, 140, 3 },
+                new[] { 142, 146, 4 },
+                new[] { 158, 162, 3 },
+                new[] { 168, 172, 2 },
+                new[] { 174, 178, 4 }
+            },
+            enemies = new[]
+            {
+                E(10f, 1.69f, 2f), E(16f, 1.69f, 2f), E(32f, 1.69f, 2f), E(42f, 1.69f, 2f),
+                E(56f, 1.69f, 2f), E(62f, 1.69f, 2f), E(78f, 1.69f, 3f), E(90f, 1.69f, 2f),
+                E(104f, 1.69f, 2f), E(114f, 1.69f, 2f), E(130f, 1.69f, 2f), E(144f, 1.69f, 2f),
+                E(158f, 1.69f, 2f), E(168f, 1.69f, 2f), E(178f, 1.69f, 2f), E(184f, 1.69f, 2f),
+                E(8f, 4.69f, 1.5f), E(34f, 4.69f, 1.5f), E(66f, 4.69f, 1.5f), E(102f, 4.69f, 1.5f),
+                E(138f, 4.69f, 1.5f), E(160f, 4.69f, 1.5f),
+                E(14f, 5.69f, 1.5f), E(58f, 5.69f, 1.5f), E(86f, 5.69f, 1.5f), E(118f, 5.69f, 1.5f),
+                E(144f, 5.69f, 1.5f), E(176f, 5.69f, 1.5f),
+                E(28f, 3.69f, 1.5f), E(52f, 3.69f, 1.5f), E(80f, 3.69f, 1.5f), E(108f, 3.69f, 1.5f),
+                E(132f, 3.69f, 1.5f), E(170f, 3.69f, 1.5f)
+            },
+
+            playerX = 0f,
+            playerY = 2f,
+            wallLeftX = -19f,
+            wallRightX = 188f,
+            camMinX = -20f,
+            camMaxX = 180f,
+            camMaxY = 5f,
+
+            enemyFireInterval = 2.3f,
+            enemyFireRange = 12f,
+            enemyHealth = 4,
+
+            goalSprite = shared.goalFlagSprite,
+            goalPosition = new Vector3(185f, 2f, 0f),
+            nextScene = "",
+            stageClearLabel = true,
+
+            decoSmall = PixelArt.DesertTuftSprites(),
+            decoBush = PixelArt.DesertBushSprites(),
+            decoRock = PixelArt.SandRockSprite(),
+            decoPine = PixelArt.CactusSprite(),
+            decoSeed = 4211,
+            decoFromX = -38f,
+            decoToX = 194f,
+
+            ambientParticles = true,
+            ambientSprite = PixelArt.DustSprite(),
+            ambientCount = 40,
+            ambientSpeedMin = 0.15f,
+            ambientSpeedMax = 0.45f,
+            ambientWindX = 0.35f
         };
     }
 
@@ -478,6 +610,9 @@ public static class PrototypeBuilder
         CharacterAnimator playerAnimator = playerGo.AddComponent<CharacterAnimator>();
         playerAnimator.frames = shared.playerFrames;
         playerAnimator.fps = 8f;
+        // Frames 0..2 are the walk cycle; frame 3 is the airborne pose.
+        playerAnimator.walkFrameCount = 3;
+        playerAnimator.airborneFrame = 3;
 
         GameObject groundCheck = new GameObject("GroundCheck");
         groundCheck.transform.SetParent(playerGo.transform, false);
@@ -489,17 +624,30 @@ public static class PrototypeBuilder
         // Matches the gun tip in the 16x24 sprite (see PixelArt.PlayerUpper).
         muzzle.transform.localPosition = new Vector3(0.42f, -0.08f, 0f);
 
+        // Muzzle flash lives at the muzzle tip (the muzzle itself mirrors when the player turns).
+        GameObject flashGo = new GameObject("MuzzleFlash");
+        flashGo.transform.SetParent(muzzle.transform, false);
+        flashGo.transform.localPosition = Vector3.zero;
+        SpriteRenderer flashRenderer = flashGo.AddComponent<SpriteRenderer>();
+        flashRenderer.sprite = shared.muzzleFlashSprite;
+        flashRenderer.sortingOrder = 12;
+        flashRenderer.enabled = false;
+        MuzzleFlash flash = flashGo.AddComponent<MuzzleFlash>();
+        flash.flash = flashRenderer;
+
         Gun gun = playerGo.AddComponent<Gun>();
         gun.weapon = shared.weapon;
         gun.bulletPrefab = shared.bulletPrefab;
         gun.muzzle = muzzle.transform;
+        gun.muzzleFlash = flash;
         controller.gun = gun;
         controller.muzzle = muzzle.transform;
 
         foreach (Vector3 spawn in spec.enemies)
         {
             CreateEnemy(spec.enemyFrames, new Vector3(spawn.x, spawn.y, 0f), spawn.z,
-                shared.enemyBulletPrefab, shared.enemyBarSprite);
+                shared.enemyBulletPrefab, shared.enemyBarSprite, shared.deathBurstPrefab,
+                spec.enemyFireInterval, spec.enemyFireRange, spec.enemyHealth);
         }
 
         CameraFollow2D follow = cam.gameObject.AddComponent<CameraFollow2D>();
@@ -515,11 +663,15 @@ public static class PrototypeBuilder
         GameObject safeGo = SetupTouchUI(shared, cam, controller, shared.playerFrames[0], spec.stageLabel, playerGo.transform);
         CreateGoal(spec, safeGo.transform, shared);
 
-        if (spec.snowfall && spec.snowflakeSprite != null)
+        if (spec.ambientParticles && spec.ambientSprite != null)
         {
-            GameObject snowGo = new GameObject("Snowfall");
-            Snowfall snow = snowGo.AddComponent<Snowfall>();
-            snow.flakeSprite = spec.snowflakeSprite;
+            GameObject ambientGo = new GameObject("AmbientParticles");
+            Snowfall snow = ambientGo.AddComponent<Snowfall>();
+            snow.flakeSprite = spec.ambientSprite;
+            snow.count = spec.ambientCount;
+            snow.speedMin = spec.ambientSpeedMin;
+            snow.speedMax = spec.ambientSpeedMax;
+            snow.windX = spec.ambientWindX;
         }
 
         new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
@@ -539,7 +691,7 @@ public static class PrototypeBuilder
 
         BuildPlayerOptions options = new BuildPlayerOptions
         {
-            scenes = new[] { Stage1Path, Stage2Path },
+            scenes = new[] { Stage1Path, Stage2Path, Stage3Path },
             locationPathName = outputPath,
             target = BuildTarget.Android,
             options = development
@@ -887,7 +1039,8 @@ public static class PrototypeBuilder
     }
 
     static void CreateEnemy(Sprite[] frames, Vector3 position, float patrol,
-        EnemyBullet bulletPrefab, Sprite barSprite)
+        EnemyBullet bulletPrefab, Sprite barSprite, SpriteBurst deathBurst,
+        float fireInterval, float fireRange, int health)
     {
         GameObject go = new GameObject("Enemy");
         go.transform.position = position;
@@ -902,10 +1055,11 @@ public static class PrototypeBuilder
         collider.offset = new Vector2(0f, 0.05f);
         Enemy enemy = go.AddComponent<Enemy>();
         enemy.patrolDistance = patrol;
-        enemy.maxHealth = 4;
+        enemy.maxHealth = health;
         enemy.bulletPrefab = bulletPrefab;
-        enemy.fireRange = 10f;
-        enemy.fireInterval = 2.6f;
+        enemy.deathBurst = deathBurst;
+        enemy.fireRange = fireRange;
+        enemy.fireInterval = fireInterval;
         CharacterAnimator animator = go.AddComponent<CharacterAnimator>();
         animator.frames = frames;
         animator.fps = 6f;
@@ -1160,6 +1314,24 @@ public static class PrototypeBuilder
         return prefab.GetComponent<EnemyBullet>();
     }
 
+    // Prefab with a short sprite-debris burst, spawned when an enemy dies.
+    static SpriteBurst CreateBurstPrefab()
+    {
+        GameObject go = new GameObject("EnemyDeathBurst");
+        SpriteBurst burst = go.AddComponent<SpriteBurst>();
+        burst.sprite = PixelArt.SolidSprite("spark", Color.white);
+        burst.count = 9;
+        burst.speedMin = 2.5f;
+        burst.speedMax = 5.5f;
+        burst.lifetime = 0.5f;
+        burst.palette = new[] { Color.white, new Color(1f, 0.85f, 0.55f), new Color(0.85f, 0.85f, 0.85f) };
+
+        string path = PrefabDir + "/EnemyDeathBurst.prefab";
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
+        UnityEngine.Object.DestroyImmediate(go);
+        return prefab.GetComponent<SpriteBurst>();
+    }
+
     // Read-only diagnostic: open both stages and report tilemap, sprite and goal wiring.
     public static void VerifyBatch()
     {
@@ -1167,6 +1339,7 @@ public static class PrototypeBuilder
         {
             VerifyLevel(Stage1Path);
             VerifyLevel(Stage2Path);
+            VerifyLevel(Stage3Path);
             Debug.Log("[Verify] done");
             EditorApplication.Exit(0);
         }

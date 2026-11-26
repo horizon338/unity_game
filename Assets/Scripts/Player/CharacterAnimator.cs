@@ -10,6 +10,11 @@ public class CharacterAnimator : MonoBehaviour
     [Tooltip("Enemies set this while aiming so the sprite faces the target instead of the walk direction.")]
     public bool faceDirection;
     public bool faceRight = true;
+    [Tooltip("How many leading frames form the walk cycle. 0 uses every frame.")]
+    public int walkFrameCount;
+    [Tooltip("Frame shown while airborne. -1 disables the airborne pose.")]
+    public int airborneFrame = -1;
+    public bool airborne;
 
     SpriteRenderer renderer;
     Vector3 lastPosition;
@@ -34,12 +39,14 @@ public class CharacterAnimator : MonoBehaviour
         else if (Mathf.Abs(dx) > 0.0005f) renderer.flipX = dx < 0f;
 
         bool moving = Mathf.Abs(dx) > 0.0015f;
+        int cycle = walkFrameCount > 0 ? Mathf.Min(walkFrameCount, frames.Length) : frames.Length;
         int target = 0;
-        if (moving && frames.Length > 1)
+        if (moving && cycle > 1)
         {
             int step = Mathf.FloorToInt(Time.time * fps);
-            target = 1 + Mathf.Abs(step) % (frames.Length - 1);
+            target = 1 + Mathf.Abs(step) % (cycle - 1);
         }
+        if (airborne && airborneFrame >= 0 && airborneFrame < frames.Length) target = airborneFrame;
         SetFrame(target);
     }
 

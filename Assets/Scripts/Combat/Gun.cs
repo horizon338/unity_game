@@ -7,6 +7,7 @@ public class Gun : MonoBehaviour
     public WeaponData weapon;
     public Bullet bulletPrefab;
     public Transform muzzle;
+    public MuzzleFlash muzzleFlash;
 
     ObjectPool<Bullet> pool;
     float nextShotTime;
@@ -34,5 +35,6 @@ public class Gun : MonoBehaviour
         Bullet bullet = pool.Get();
         bullet.transform.position = muzzle.position;
         bullet.Launch(pool, dir, weapon.bulletSpeed, weapon.bulletLifetime, weapon.damage);
+        if (muzzleFlash != null) muzzleFlash.Play();
     }
 }

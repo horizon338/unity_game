@@ -35,6 +35,8 @@ public class PlayerController : MonoBehaviour
 
     Rigidbody2D body;
     SpriteRenderer spriteRenderer;
+    CharacterAnimator animator;
+    CameraFollow2D cameraFollow;
     Vector3 spawnPosition;
     Vector3 safePosition;
     bool facingRight = true;
@@ -53,6 +55,8 @@ public class PlayerController : MonoBehaviour
         body = GetComponent<Rigidbody2D>();
         body.freezeRotation = true;
         spriteRenderer = GetComponent<SpriteRenderer>();
+        animator = GetComponent<CharacterAnimator>();
+        cameraFollow = FindObjectOfType<CameraFollow2D>();
         spawnPosition = transform.position;
         safePosition = spawnPosition;
         Health = maxHealth;
@@ -94,6 +98,7 @@ public class PlayerController : MonoBehaviour
     void FixedUpdate()
     {
         grounded = groundCheck != null && IsGrounded();
+        if (animator != null) animator.airborne = !grounded;
         if (grounded)
         {
             jumping = false;
@@ -175,6 +180,7 @@ public class PlayerController : MonoBehaviour
         float away = transform.position.x >= sourceX ? 1f : -1f;
         body.velocity = new Vector2(away * 5f, 7f);
         knockbackTimer = 0.18f;
+        if (cameraFollow != null) cameraFollow.Shake(0.22f, 0.22f);
 
         if (Health <= 0)
         {
