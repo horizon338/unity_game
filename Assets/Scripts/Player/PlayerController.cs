@@ -94,12 +94,11 @@ public class PlayerController : MonoBehaviour
 
         if (gun != null)
         {
-            // Tap FIRE: exactly one shot. Hold 2s: latched auto-fire until FIRE is tapped again.
-            bool firePressed = InputBridge.ConsumeFirePressed();
-            bool continuous = InputBridge.AutoFire
+            // FIRE toggles continuous fire on/off; keyboard J fires while held.
+            bool firing = InputBridge.AutoFire
                 || InputBridge.OnScreenFireAuto
                 || InputBridge.KeyboardFireHeld;
-            if (firePressed || continuous) gun.TryFire(AimDirection(move), facingRight);
+            if (firing) gun.TryFire(AimDirection(move), facingRight);
         }
 
         if (transform.position.y < killHeight) Respawn();
