@@ -58,6 +58,11 @@ public class PlayerController : MonoBehaviour
         animator = GetComponent<CharacterAnimator>();
         cameraFollow = FindObjectOfType<CameraFollow2D>();
         spawnPosition = transform.position;
+
+        // Static input flags survive scene loads; start every stage in single-shot mode.
+        InputBridge.OnScreenFireAuto = false;
+        InputBridge.OnScreenFireHeld = false;
+        InputBridge.OnScreenFireDown = false;
         safePosition = spawnPosition;
         Health = maxHealth;
     }
@@ -89,11 +94,11 @@ public class PlayerController : MonoBehaviour
 
         if (gun != null)
         {
-            // Tap FIRE: exactly one shot. Hold FIRE: continuous fire at the weapon's rate.
+            // Tap FIRE: exactly one shot. Hold 2s: latched auto-fire until FIRE is tapped again.
             bool firePressed = InputBridge.ConsumeFirePressed();
             bool continuous = InputBridge.AutoFire
-                || InputBridge.KeyboardFireHeld
-                || (InputBridge.OnScreenFireHeld && InputBridge.OnScreenFireHoldTime >= 0.18f);
+                || InputBridge.OnScreenFireAuto
+                || InputBridge.KeyboardFireHeld;
             if (firePressed || continuous) gun.TryFire(AimDirection(move), facingRight);
         }
 
