@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 2167692631153543572}
   - component: {fileID: 1010107000584158373}
   - component: {fileID: 3301470086512803466}
+  - component: {fileID: 4555245342297741290}
   m_Layer: 0
   m_HasEditorInfo: 1
   m_Name: Bullet
@@ -82,12 +83,12 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 11
-  m_Sprite: {fileID: 21300000, guid: cd9c252b9479f5f47826dc8519a1de0b, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 24a3d0d67a698ae4cbf938ef3dfb33f8, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 0.5, y: 0.25}
+  m_Size: {x: 1, y: 0.453125}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -154,12 +155,12 @@ BoxCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeLayer: 0
-  m_Offset: {x: 0, y: 0}
+  m_Offset: {x: -0.23000002, y: 0}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
-    pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 0.5, y: 0.25}
-    newSize: {x: 0.5, y: 0.25}
+    pivot: {x: 0.73, y: 0.5}
+    oldSize: {x: 1, y: 0.453125}
+    newSize: {x: 1, y: 0.453125}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
     adaptiveTiling: 0
@@ -178,3 +179,37 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 13b770f720715124ebc5c668f9c6fd2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &4555245342297741290
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7883352211321193277}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80e9a32a0309afc4e9a425402ac67459, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  frames:
+  - {fileID: 21300000, guid: 24a3d0d67a698ae4cbf938ef3dfb33f8, type: 3}
+  - {fileID: 21300000, guid: f157ce93e4328274f98a4f192fdc113c, type: 3}
+  - {fileID: 21300000, guid: d59a875dc1f7ee64484a5b2a2cc298c7, type: 3}
+  - {fileID: 21300000, guid: 4768964be7168bb4fab4a873ec689f69, type: 3}
+  - {fileID: 21300000, guid: 860470ee59ffa5f4b91ac86d59b576f5, type: 3}
+  - {fileID: 21300000, guid: 27df432cbe429c84b9c32e9d4911fddc, type: 3}
+  - {fileID: 21300000, guid: be5af539943359448b921434af388f30, type: 3}
+  - {fileID: 21300000, guid: f8565faf5e7d8f94684c979dedf6b9e3, type: 3}
+  - {fileID: 21300000, guid: 31195d2026f452c40b71fc87f750d1bd, type: 3}
+  - {fileID: 21300000, guid: f890b662b21ccd042baf4626d39701b6, type: 3}
+  - {fileID: 21300000, guid: 6287059a95a62304287e685dda63e8fe, type: 3}
+  - {fileID: 21300000, guid: 2bce38786cb63d0448be28e87d6f4cf4, type: 3}
+  - {fileID: 21300000, guid: c054b0d8aca056942a05e8252d14f168, type: 3}
+  - {fileID: 21300000, guid: ed1ee1fe0cf4726418035d829864b39a, type: 3}
+  - {fileID: 21300000, guid: ba2922c649cce494e82e26e825366cb7, type: 3}
+  - {fileID: 21300000, guid: 731a1300f0cfa4c43832cd2d0da70815, type: 3}
+  - {fileID: 21300000, guid: 269f7055c497649408cc055af39e538e, type: 3}
+  - {fileID: 21300000, guid: f94d30ef2b0fd9f459e66dc9039b0c83, type: 3}
+  - {fileID: 21300000, guid: 867b440a0d5d13947bf15cf15262931c, type: 3}
+  - {fileID: 21300000, guid: 0caa108994526da4db1cd8ea084f34d3, type: 3}
+  fps: 25
