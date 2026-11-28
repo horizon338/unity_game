@@ -10,7 +10,7 @@ public static class InputBridge
     public static bool OnScreenJumpHeld;
     public static bool OnScreenFireHeld;
     public static bool OnScreenFireDown;
-    public static float OnScreenFireHoldTime;
+    public static bool OnScreenFireAuto;
     public static bool OnScreenJumpDown;
 
     // Auto-fire toggled by the AUTO button. When off, the gun fires only while FIRE is held.

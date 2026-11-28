@@ -8,14 +8,18 @@ public enum OnScreenButtonType
     Fire
 }
 
-// Touch button for jump or fire. Holding it sets the held flag; pressing sets a one-shot jump request.
+// Touch button for jump or fire. FIRE: a tap fires a single shot, holding for 2 seconds latches
+// auto-fire, and tapping again cancels auto-fire back to single-shot mode.
 public class OnScreenButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 {
+    const float AutoFireHoldTime = 2f;
+
     public OnScreenButtonType type;
     public Image image;
 
     Color normalColor;
     Color pressedColor;
+    float holdTime;
 
     void Awake()
     {
@@ -27,40 +31,71 @@ public class OnScreenButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
 
     public void OnPointerDown(PointerEventData eventData)
     {
-        if (image != null) image.color = pressedColor;
         if (type == OnScreenButtonType.Jump)
         {
             InputBridge.OnScreenJumpHeld = true;
             InputBridge.OnScreenJumpDown = true;
+            if (image != null) image.color = pressedColor;
+            return;
         }
-        else
+
+        // A tap while auto-fire is latched cancels it; this tap does not fire a bullet.
+        if (InputBridge.OnScreenFireAuto)
         {
-            InputBridge.OnScreenFireHeld = true;
-            InputBridge.OnScreenFireDown = true;
-            InputBridge.OnScreenFireHoldTime = 0f;
+            InputBridge.OnScreenFireAuto = false;
+            InputBridge.OnScreenFireHeld = false;
+            holdTime = 0f;
+            RefreshColor();
+            return;
         }
+
+        InputBridge.OnScreenFireHeld = true;
+        InputBridge.OnScreenFireDown = true;
+        holdTime = 0f;
+        if (image != null) image.color = pressedColor;
     }
 
     public void OnPointerUp(PointerEventData eventData)
     {
-        if (image != null) image.color = normalColor;
         if (type == OnScreenButtonType.Jump)
         {
             InputBridge.OnScreenJumpHeld = false;
+            if (image != null) image.color = normalColor;
+            return;
         }
-        else
-        {
-            InputBridge.OnScreenFireHeld = false;
-            InputBridge.OnScreenFireHoldTime = 0f;
-        }
+
+        InputBridge.OnScreenFireHeld = false;
+        holdTime = 0f;
+        RefreshColor();
     }
 
     void Update()
     {
-        // Tracks how long FIRE has been held so taps stay single-shot while holding auto-fires.
-        if (type == OnScreenButtonType.Fire && InputBridge.OnScreenFireHeld)
+        if (type != OnScreenButtonType.Fire) return;
+
+        if (InputBridge.OnScreenFireHeld && !InputBridge.OnScreenFireAuto)
         {
-            InputBridge.OnScreenFireHoldTime += Time.unscaledDeltaTime;
+            holdTime += Time.unscaledDeltaTime;
+            if (holdTime >= AutoFireHoldTime)
+            {
+                // Long press latches auto-fire; it keeps firing after release until tapped again.
+                InputBridge.OnScreenFireAuto = true;
+                holdTime = 0f;
+            }
         }
+
+        RefreshColor();
+    }
+
+    void RefreshColor()
+    {
+        if (image == null || type != OnScreenButtonType.Fire) return;
+
+        if (InputBridge.OnScreenFireAuto)
+            image.color = new Color(0.95f, 0.62f, 0.16f, 0.85f);
+        else if (InputBridge.OnScreenFireHeld)
+            image.color = pressedColor;
+        else
+            image.color = normalColor;
     }
 }
