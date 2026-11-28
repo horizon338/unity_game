@@ -26,6 +26,8 @@ public static class PrototypeBuilder
     const string Stage1Path = "Assets/Scenes/Stage01.unity";
     const string Stage2Path = "Assets/Scenes/Stage02.unity";
     const string Stage3Path = "Assets/Scenes/Stage03.unity";
+    const string Stage4Path = "Assets/Scenes/Stage04.unity";
+    const string Stage5Path = "Assets/Scenes/Stage05.unity";
     const string ApkRelativePath = "Builds/android/Prototype.apk";
 
     // Art, prefabs and UI sprites every stage shares; generated once per run.
@@ -111,6 +113,7 @@ public static class PrototypeBuilder
         public float ambientSpeedMin = 0.5f;
         public float ambientSpeedMax = 1.5f;
         public float ambientWindX;
+        public Color ambientTint = Color.white;
     }
 
     public static void SetupBatch()
@@ -188,7 +191,9 @@ public static class PrototypeBuilder
             new EditorBuildSettingsScene(MainMenuPath, true),
             new EditorBuildSettingsScene(Stage1Path, true),
             new EditorBuildSettingsScene(Stage2Path, true),
-            new EditorBuildSettingsScene(Stage3Path, true)
+            new EditorBuildSettingsScene(Stage3Path, true),
+            new EditorBuildSettingsScene(Stage4Path, true),
+            new EditorBuildSettingsScene(Stage5Path, true)
         };
         AssetDatabase.SaveAssets();
     }
@@ -226,6 +231,8 @@ public static class PrototypeBuilder
         BuildLevel(Stage1Spec(shared), shared);
         BuildLevel(Stage2Spec(shared), shared);
         BuildLevel(Stage3Spec(shared), shared);
+        BuildLevel(Stage4Spec(shared), shared);
+        BuildLevel(Stage5Spec(shared), shared);
         BuildMainMenu(shared);
 
         PixelArt.WritePreview();
@@ -500,8 +507,8 @@ public static class PrototypeBuilder
 
             goalSprite = shared.goalFlagSprite,
             goalPosition = new Vector3(185f, 2f, 0f),
-            nextScene = "",
-            stageClearLabel = true,
+            nextScene = "Stage04",
+            stageClearLabel = false,
 
             decoSmall = PixelArt.DesertTuftSprites(),
             decoBush = PixelArt.DesertBushSprites(),
@@ -517,6 +524,226 @@ public static class PrototypeBuilder
             ambientSpeedMin = 0.15f,
             ambientSpeedMax = 0.45f,
             ambientWindX = 0.35f
+        };
+    }
+
+    // Level 4: cave. Dark rock walls, stalactites, glowing crystals and wooden mine platforms.
+    static LevelSpec Stage4Spec(Shared shared)
+    {
+        return new LevelSpec
+        {
+            scenePath = Stage4Path,
+            stageLabel = "STAGE 4",
+
+            groundTileName = "CaveGroundTop",
+            fillTileName = "CaveFill",
+            platformTileName = "MinePlatform",
+            groundTops = PixelArt.CaveGroundTops(),
+            fillTiles = PixelArt.CaveFills(),
+            platformSprite = PixelArt.CavePlatformSprite(),
+            pitBackingSprite = PixelArt.SolidSprite("pit_backing_cave", new Color(0.03f, 0.02f, 0.02f, 1f)),
+            depthShadeSprite = PixelArt.CaveDepthShadeSprite(),
+
+            enemyFrames = PixelArt.CaveEnemyFrames(),
+            skySprite = PixelArt.CaveSkySprite(),
+            mountainSprite = PixelArt.CaveWallSprite(),
+            treelineSprite = PixelArt.CaveTreelineSprite(),
+            cameraBackground = new Color(0.035f, 0.03f, 0.028f),
+            lightTint = new Color(0.78f, 0.80f, 0.86f),
+
+            paintFromX = -40,
+            paintToX = 199,
+            pits = new[]
+            {
+                new Vector2Int(18, 20),
+                new Vector2Int(42, 44),
+                new Vector2Int(66, 68),
+                new Vector2Int(92, 94),
+                new Vector2Int(118, 120),
+                new Vector2Int(144, 146)
+            },
+            platforms = new[]
+            {
+                new[] { 6, 10, 3 },
+                new[] { 12, 16, 4 },
+                new[] { 22, 26, 2 },
+                new[] { 30, 34, 3 },
+                new[] { 36, 40, 4 },
+                new[] { 48, 52, 2 },
+                new[] { 54, 58, 3 },
+                new[] { 62, 66, 4 },
+                new[] { 74, 78, 2 },
+                new[] { 80, 84, 3 },
+                new[] { 86, 90, 4 },
+                new[] { 98, 102, 2 },
+                new[] { 104, 108, 3 },
+                new[] { 112, 116, 4 },
+                new[] { 124, 128, 2 },
+                new[] { 130, 134, 3 },
+                new[] { 138, 142, 4 },
+                new[] { 150, 154, 2 },
+                new[] { 156, 160, 3 },
+                new[] { 162, 166, 4 },
+                new[] { 174, 178, 3 },
+                new[] { 180, 184, 2 }
+            },
+            enemies = new[]
+            {
+                E(10f, 1.69f, 2f), E(24f, 1.69f, 2f), E(38f, 1.69f, 2f), E(52f, 1.69f, 2f),
+                E(64f, 1.69f, 2f), E(76f, 1.69f, 3f), E(100f, 1.69f, 2f), E(110f, 1.69f, 2f),
+                E(124f, 1.69f, 2f), E(136f, 1.69f, 2f), E(150f, 1.69f, 2f), E(172f, 1.69f, 2f),
+                E(182f, 1.69f, 2f),
+                E(8f, 4.69f, 1.5f), E(32f, 4.69f, 1.5f), E(56f, 4.69f, 1.5f), E(82f, 4.69f, 1.5f),
+                E(106f, 4.69f, 1.5f), E(132f, 4.69f, 1.5f), E(158f, 4.69f, 1.5f), E(176f, 4.69f, 1.5f),
+                E(14f, 5.69f, 1.5f), E(38f, 5.69f, 1.5f), E(64f, 5.69f, 1.5f), E(88f, 5.69f, 1.5f),
+                E(114f, 5.69f, 1.5f), E(140f, 5.69f, 1.5f), E(164f, 5.69f, 1.5f),
+                E(24f, 3.69f, 1.5f), E(50f, 3.69f, 1.5f), E(76f, 3.69f, 1.5f), E(100f, 3.69f, 1.5f),
+                E(126f, 3.69f, 1.5f), E(152f, 3.69f, 1.5f), E(182f, 3.69f, 1.5f)
+            },
+
+            playerX = 0f,
+            playerY = 2f,
+            wallLeftX = -19f,
+            wallRightX = 188f,
+            camMinX = -20f,
+            camMaxX = 180f,
+            camMaxY = 5f,
+
+            enemyFireInterval = 2.2f,
+            enemyFireRange = 12f,
+            enemyHealth = 4,
+
+            goalSprite = shared.goalFlagSprite,
+            goalPosition = new Vector3(185f, 2f, 0f),
+            nextScene = "Stage05",
+            stageClearLabel = false,
+
+            decoSmall = PixelArt.CaveSmallSprites(),
+            decoBush = PixelArt.CaveCrystalSprites(),
+            decoRock = PixelArt.CaveRockSprite(),
+            decoPine = PixelArt.CavePillarSprite(),
+            decoSeed = 5211,
+            decoFromX = -38f,
+            decoToX = 194f,
+
+            ambientParticles = true,
+            ambientSprite = PixelArt.DustSprite(),
+            ambientCount = 30,
+            ambientSpeedMin = 0.15f,
+            ambientSpeedMax = 0.4f,
+            ambientWindX = 0.05f,
+            ambientTint = new Color(0.72f, 0.88f, 1f)
+        };
+    }
+
+    // Level 5: factory. Steel plates, girders, industrial skyline, crates, barrels and pipes.
+    static LevelSpec Stage5Spec(Shared shared)
+    {
+        return new LevelSpec
+        {
+            scenePath = Stage5Path,
+            stageLabel = "STAGE 5",
+
+            groundTileName = "FactoryGroundTop",
+            fillTileName = "FactoryFill",
+            platformTileName = "FactoryPlatform",
+            groundTops = PixelArt.FactoryGroundTops(),
+            fillTiles = PixelArt.FactoryFills(),
+            platformSprite = PixelArt.FactoryPlatformSprite(),
+            pitBackingSprite = PixelArt.SolidSprite("pit_backing_factory", new Color(0.03f, 0.04f, 0.05f, 1f)),
+            depthShadeSprite = PixelArt.FactoryDepthShadeSprite(),
+
+            enemyFrames = PixelArt.FactoryEnemyFrames(),
+            skySprite = PixelArt.FactorySkySprite(),
+            mountainSprite = PixelArt.FactoryBackdropSprite(),
+            treelineSprite = PixelArt.FactoryTreelineSprite(),
+            cameraBackground = new Color(0.04f, 0.05f, 0.065f),
+            lightTint = new Color(0.96f, 0.98f, 1f),
+
+            paintFromX = -40,
+            paintToX = 199,
+            pits = new[]
+            {
+                new Vector2Int(16, 18),
+                new Vector2Int(38, 40),
+                new Vector2Int(60, 62),
+                new Vector2Int(82, 84),
+                new Vector2Int(104, 106),
+                new Vector2Int(126, 128),
+                new Vector2Int(150, 152),
+                new Vector2Int(174, 176)
+            },
+            platforms = new[]
+            {
+                new[] { 5, 9, 3 },
+                new[] { 11, 15, 4 },
+                new[] { 22, 26, 2 },
+                new[] { 28, 32, 3 },
+                new[] { 34, 38, 4 },
+                new[] { 46, 50, 2 },
+                new[] { 52, 56, 3 },
+                new[] { 56, 60, 4 },
+                new[] { 68, 72, 2 },
+                new[] { 74, 78, 3 },
+                new[] { 88, 92, 2 },
+                new[] { 94, 98, 3 },
+                new[] { 100, 104, 4 },
+                new[] { 112, 116, 2 },
+                new[] { 118, 122, 3 },
+                new[] { 134, 138, 2 },
+                new[] { 140, 144, 3 },
+                new[] { 146, 150, 4 },
+                new[] { 158, 162, 2 },
+                new[] { 164, 168, 3 },
+                new[] { 180, 184, 3 }
+            },
+            enemies = new[]
+            {
+                E(12f, 1.69f, 2f), E(22f, 1.69f, 2f), E(30f, 1.69f, 2f), E(42f, 1.69f, 2f),
+                E(50f, 1.69f, 2f), E(58f, 1.69f, 2f), E(78f, 1.69f, 2f), E(88f, 1.69f, 2f),
+                E(108f, 1.69f, 2f), E(128f, 1.69f, 2f), E(138f, 1.69f, 2f), E(158f, 1.69f, 2f),
+                E(168f, 1.69f, 2f), E(184f, 1.69f, 2f),
+                E(7f, 4.69f, 1.5f), E(30f, 4.69f, 1.5f), E(54f, 4.69f, 1.5f), E(76f, 4.69f, 1.5f),
+                E(96f, 4.69f, 1.5f), E(120f, 4.69f, 1.5f), E(142f, 4.69f, 1.5f), E(166f, 4.69f, 1.5f),
+                E(182f, 4.69f, 1.5f),
+                E(13f, 5.69f, 1.5f), E(36f, 5.69f, 1.5f), E(58f, 5.69f, 1.5f), E(102f, 5.69f, 1.5f),
+                E(148f, 5.69f, 1.5f),
+                E(24f, 3.69f, 1.5f), E(48f, 3.69f, 1.5f), E(70f, 3.69f, 1.5f), E(90f, 3.69f, 1.5f),
+                E(114f, 3.69f, 1.5f), E(136f, 3.69f, 1.5f), E(160f, 3.69f, 1.5f)
+            },
+
+            playerX = 0f,
+            playerY = 2f,
+            wallLeftX = -19f,
+            wallRightX = 188f,
+            camMinX = -20f,
+            camMaxX = 180f,
+            camMaxY = 5f,
+
+            enemyFireInterval = 2.1f,
+            enemyFireRange = 12f,
+            enemyHealth = 4,
+
+            goalSprite = shared.goalFlagSprite,
+            goalPosition = new Vector3(185f, 2f, 0f),
+            nextScene = "",
+            stageClearLabel = true,
+
+            decoSmall = PixelArt.FactoryPlateSprites(),
+            decoBush = PixelArt.FactoryBarrelSprites(),
+            decoRock = PixelArt.FactoryCrateSprites()[0],
+            decoPine = PixelArt.FactoryPipeSprite(),
+            decoSeed = 6211,
+            decoFromX = -38f,
+            decoToX = 194f,
+
+            ambientParticles = true,
+            ambientSprite = PixelArt.DustSprite(),
+            ambientCount = 26,
+            ambientSpeedMin = 0.2f,
+            ambientSpeedMax = 0.5f,
+            ambientWindX = 0.1f,
+            ambientTint = new Color(1f, 0.86f, 0.62f)
         };
     }
 
@@ -677,6 +904,7 @@ public static class PrototypeBuilder
             snow.speedMin = spec.ambientSpeedMin;
             snow.speedMax = spec.ambientSpeedMax;
             snow.windX = spec.ambientWindX;
+            snow.tint = spec.ambientTint;
         }
 
         new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
@@ -696,7 +924,7 @@ public static class PrototypeBuilder
 
         BuildPlayerOptions options = new BuildPlayerOptions
         {
-            scenes = new[] { MainMenuPath, Stage1Path, Stage2Path, Stage3Path },
+            scenes = new[] { MainMenuPath, Stage1Path, Stage2Path, Stage3Path, Stage4Path, Stage5Path },
             locationPathName = outputPath,
             target = BuildTarget.Android,
             options = development
@@ -1129,7 +1357,9 @@ public static class PrototypeBuilder
         {
             PixelArt.LevelPreviewSprite(1),
             PixelArt.LevelPreviewSprite(2),
-            PixelArt.LevelPreviewSprite(3)
+            PixelArt.LevelPreviewSprite(3),
+            PixelArt.LevelPreviewSprite(4),
+            PixelArt.LevelPreviewSprite(5)
         };
 
         GameObject panel = new GameObject("LevelSelectPanel", typeof(RectTransform), typeof(Image), typeof(LevelSelectUI));
@@ -1188,8 +1418,15 @@ public static class PrototypeBuilder
         ui.nextButton = nextButton;
         ui.startButton = startButton;
         ui.backButton = backButton;
-        ui.sceneNames = new[] { "Stage01", "Stage02", "Stage03" };
-        ui.levelTitles = new[] { "STAGE 1 · 草地", "STAGE 2 · 雪地", "STAGE 3 · 沙漠" };
+        ui.sceneNames = new[] { "Stage01", "Stage02", "Stage03", "Stage04", "Stage05" };
+        ui.levelTitles = new[]
+        {
+            "STAGE 1 · 草地",
+            "STAGE 2 · 雪地",
+            "STAGE 3 · 沙漠",
+            "STAGE 4 · 洞穴",
+            "STAGE 5 · 工厂"
+        };
         ui.previewSprites = previews;
 
         panel.SetActive(false);
@@ -1642,6 +1879,8 @@ public static class PrototypeBuilder
             VerifyLevel(Stage1Path);
             VerifyLevel(Stage2Path);
             VerifyLevel(Stage3Path);
+            VerifyLevel(Stage4Path);
+            VerifyLevel(Stage5Path);
             Debug.Log("[Verify] done");
             EditorApplication.Exit(0);
         }

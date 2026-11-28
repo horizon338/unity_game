@@ -202,6 +202,44 @@ public static class PixelArt
         };
     }
 
+    // Cave-guard uniform: dark leather and stone tones.
+    static Dictionary<char, Color> CaveEnemyPalette()
+    {
+        return new Dictionary<char, Color>
+        {
+            { 'k', Hex("#0C0A08") },
+            { 'H', Hex("#6E5A45") },
+            { 'I', Hex("#4A3A2A") },
+            { 's', Hex("#DFA97A") },
+            { 'S', Hex("#B07A4E") },
+            { 'u', Hex("#5E5145") },
+            { 'U', Hex("#3D342B") },
+            { 'g', Hex("#33383F") },
+            { 'G', Hex("#7E8794") },
+            { 'o', Hex("#221A12") },
+            { 'O', Hex("#140F09") }
+        };
+    }
+
+    // Factory-guard uniform: steel grey with dark accents.
+    static Dictionary<char, Color> FactoryEnemyPalette()
+    {
+        return new Dictionary<char, Color>
+        {
+            { 'k', Hex("#0C0E12") },
+            { 'H', Hex("#6A7078") },
+            { 'I', Hex("#464C55") },
+            { 's', Hex("#E3AE78") },
+            { 'S', Hex("#B57B4A") },
+            { 'u', Hex("#5C636C") },
+            { 'U', Hex("#3E444C") },
+            { 'g', Hex("#2E333A") },
+            { 'G', Hex("#9AA3AE") },
+            { 'o', Hex("#221A12") },
+            { 'O', Hex("#140F09") }
+        };
+    }
+
     public static Sprite[] PlayerFrames()
     {
         Dictionary<char, Color> palette = PlayerPalette();
@@ -241,6 +279,26 @@ public static class PixelArt
         {
             FromMap("desert_enemy_a", Combine(EnemyUpper, EnemyLegsA), palette),
             FromMap("desert_enemy_b", Combine(EnemyUpper, EnemyLegsB), palette)
+        };
+    }
+
+    public static Sprite[] CaveEnemyFrames()
+    {
+        Dictionary<char, Color> palette = CaveEnemyPalette();
+        return new[]
+        {
+            FromMap("cave_enemy_a", Combine(EnemyUpper, EnemyLegsA), palette),
+            FromMap("cave_enemy_b", Combine(EnemyUpper, EnemyLegsB), palette)
+        };
+    }
+
+    public static Sprite[] FactoryEnemyFrames()
+    {
+        Dictionary<char, Color> palette = FactoryEnemyPalette();
+        return new[]
+        {
+            FromMap("factory_enemy_a", Combine(EnemyUpper, EnemyLegsA), palette),
+            FromMap("factory_enemy_b", Combine(EnemyUpper, EnemyLegsB), palette)
         };
     }
 
@@ -1834,6 +1892,883 @@ public static class PixelArt
         t.SetPixel(tipX, startY + 7, light);
     }
 
+    // ------------------------------------------------------------------ cave theme
+
+    public static Sprite CaveSkySprite()
+    {
+        return SkyGradient("cave_sky",
+            Hex("#2E241B"), Hex("#221B15"), Hex("#191410"), Hex("#0C0A08"));
+    }
+
+    // Far cave wall with jagged rock masses and occasional crystal glints.
+    public static Sprite CaveWallSprite()
+    {
+        return BuildCaveWallSprite("cave_wall", Hex("#2B241E"), Hex("#3C332A"), Hex("#4F4538"), 131);
+    }
+
+    static Sprite BuildCaveWallSprite(string name, Color dark, Color mid, Color light, int seedBase)
+    {
+        int w = 4096;
+        int h = 128;
+        Texture2D t = NewTex(w, h);
+
+        float[] ridgeFar = new float[w];
+        float[] ridgeNear = new float[w];
+        for (int x = 0; x < w; x++)
+        {
+            float nf = 0.55f * Ridged(x, 380f, seedBase) + 0.30f * Ridged(x, 140f, seedBase + 1) + 0.15f * Ridged(x, 50f, seedBase + 2);
+            ridgeFar[x] = 26f + nf * 86f;
+            float nn = 0.55f * Ridged(x, 300f, seedBase + 10) + 0.30f * Ridged(x, 110f, seedBase + 11) + 0.15f * Ridged(x, 44f, seedBase + 12);
+            ridgeNear[x] = 12f + nn * 64f;
+        }
+
+        Color glint = Hex("#63D8E8");
+
+        for (int x = 0; x < w; x++)
+        {
+            for (int y = 0; y < h; y++)
+            {
+                Color c = Color.clear;
+                if (y <= ridgeFar[x])
+                {
+                    c = Color.Lerp(dark, mid, Mathf.Clamp01(y / Mathf.Max(1f, ridgeFar[x]) * 1.15f));
+                    if (Mathf.Abs(y - ridgeFar[x]) < 1.5f) c = Color.Lerp(c, light, 0.35f);
+                }
+                if (y <= ridgeNear[x])
+                {
+                    c = Color.Lerp(mid, light, Mathf.Clamp01(y / Mathf.Max(1f, ridgeNear[x]) * 1.15f));
+                    if (Mathf.Abs(y - ridgeNear[x]) < 1.5f) c = Color.Lerp(c, light, 0.5f);
+                }
+
+                if (c.a > 0f)
+                {
+                    if (Hash(x * 7 + y * 13, 3) > 0.99935f) c = glint;
+                    t.SetPixel(x, y, c);
+                }
+            }
+        }
+
+        return Import(name, t, true, Ppu);
+    }
+
+    // Cave treeline: stalagmites rising from the floor, stalactites hanging from the ceiling.
+    public static Sprite CaveTreelineSprite()
+    {
+        int w = 4096;
+        int h = 96;
+        Texture2D t = NewTex(w, h);
+        System.Random rng = new System.Random(1421);
+
+        Color body = Hex("#3D362E");
+        Color light = Hex("#5A5044");
+        Color dark = Hex("#241F1A");
+
+        int x = rng.Next(4, 24);
+        while (x < w - 4)
+        {
+            int height = rng.Next(14, 52);
+            int halfW = rng.Next(3, 9);
+            DrawSpike(t, x, 2, halfW, height, body, light, dark, true);
+            x += rng.Next(20, 74);
+        }
+
+        x = rng.Next(10, 60);
+        while (x < w - 10)
+        {
+            int height = rng.Next(8, 34);
+            int halfW = rng.Next(2, 7);
+            DrawSpike(t, x, h - 2, halfW, height, body, light, dark, false);
+            x += rng.Next(46, 140);
+        }
+
+        return Import("cave_treeline", t, true, Ppu);
+    }
+
+    // Cone spike. upwards = stalagmite (base at baseY), otherwise a hanging stalactite (top at baseY).
+    static void DrawSpike(Texture2D t, int cx, int baseY, int halfW, int height,
+        Color body, Color light, Color dark, bool upwards)
+    {
+        for (int y = 0; y <= height; y++)
+        {
+            float k = y / (float)height;
+            int hw = Mathf.RoundToInt(halfW * (1f - k));
+            if (hw < 1) hw = 1;
+            int py = upwards ? baseY + y : baseY - y;
+            if (py < 0 || py >= t.height) continue;
+
+            for (int dx = -hw; dx <= hw; dx++)
+            {
+                int px = cx + dx;
+                if (px < 0 || px >= t.width) continue;
+                Color c = body;
+                if (dx == -hw) c = light;
+                else if (dx == hw) c = dark;
+                t.SetPixel(px, py, c);
+            }
+        }
+    }
+
+    public static Sprite[] CaveGroundTops()
+    {
+        return new[]
+        {
+            FromTexture("cave_ground_top0", BuildCaveGroundTop(1601)),
+            FromTexture("cave_ground_top1", BuildCaveGroundTop(1602)),
+            FromTexture("cave_ground_top2", BuildCaveGroundTop(1603))
+        };
+    }
+
+    public static Sprite[] CaveFills()
+    {
+        return new[]
+        {
+            FromTexture("cave_fill0", BuildCaveFill(2601)),
+            FromTexture("cave_fill1", BuildCaveFill(2602))
+        };
+    }
+
+    public static Sprite CavePlatformSprite()
+    {
+        return FromTexture("mine_platform", BuildMinePlatform(3601));
+    }
+
+    static Texture2D BuildCaveGroundTop(int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(16, 16);
+
+        Color rockBase = Hex("#4A443C");
+        Color rockDark = Hex("#2E2A24");
+        Color rockLight = Hex("#615A4F");
+        Color stone = Hex("#6E675B");
+        Color stoneDark = Hex("#3A352E");
+        Color edgeLight = Hex("#8A8174");
+        Color crystal = Hex("#59D0E0");
+
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 16; x++)
+            {
+                float v = (float)rng.NextDouble();
+                Color c = Color.Lerp(rockDark, rockBase, Mathf.Clamp01(y / 12f));
+                if (v < 0.10f) c = Color.Lerp(c, rockDark, 0.5f);
+                else if (v > 0.94f) c = Color.Lerp(c, rockLight, 0.5f);
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        for (int i = 0; i < 3; i++)
+        {
+            int px = rng.Next(1, 14);
+            int py = rng.Next(1, 8);
+            t.SetPixel(px, py, stone);
+            t.SetPixel(px + 1, py, stone);
+            t.SetPixel(px, py + 1, Color.Lerp(stone, rockLight, 0.4f));
+            t.SetPixel(px + 1, py + 1, stoneDark);
+            t.SetPixel(px, py - 1, stoneDark);
+        }
+
+        int[] top = new int[16];
+        for (int x = 0; x < 16; x++) top[x] = 10 + rng.Next(0, 5);
+
+        for (int x = 0; x < 16; x++)
+        {
+            t.SetPixel(x, top[x], edgeLight);
+            t.SetPixel(x, top[x] - 1, stone);
+            t.SetPixel(x, top[x] - 2, rng.NextDouble() < 0.5f ? rockLight : rockBase);
+            t.SetPixel(x, top[x] - 3, Color.Lerp(rockBase, rockDark, 0.4f));
+
+            if (rng.NextDouble() < 0.30) t.SetPixel(x, top[x], stone);
+            if (rng.NextDouble() < 0.12) t.SetPixel(x, top[x] - 1, crystal);
+            if (rng.NextDouble() < 0.25) t.SetPixel(x, top[x] - 3, rockDark);
+        }
+
+        if (rng.NextDouble() < 0.4)
+        {
+            int fx = rng.Next(0, 16);
+            t.SetPixel(fx, top[fx] - 1, Color.Lerp(crystal, Color.white, 0.4f));
+        }
+
+        return t;
+    }
+
+    static Texture2D BuildCaveFill(int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(16, 16);
+
+        Color baseCol = Hex("#3A342C");
+        Color dark = Hex("#241F1A");
+        Color light = Hex("#4E463C");
+        Color stone = Hex("#5A5145");
+
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 16; x++)
+            {
+                float v = (float)rng.NextDouble();
+                Color c = baseCol;
+                if (v < 0.08f) c = Color.Lerp(c, dark, 0.45f);
+                else if (v > 0.95f) c = Color.Lerp(c, light, 0.40f);
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        // A couple of diagonal cracks keep the fill from reading as flat noise.
+        for (int i = 0; i < 2; i++)
+        {
+            int cx = rng.Next(2, 12);
+            int cy = rng.Next(2, 12);
+            for (int step = 0; step < 8; step++)
+            {
+                int px = cx + step / 2;
+                int py = cy + step;
+                if (px >= 0 && px < 16 && py >= 0 && py < 16)
+                    t.SetPixel(px, py, Color.Lerp(dark, Color.black, 0.2f));
+            }
+        }
+
+        for (int i = 0; i < 3; i++)
+        {
+            int px = rng.Next(1, 15);
+            int py = rng.Next(1, 15);
+            t.SetPixel(px, py, stone);
+            t.SetPixel(px, py + 1, Color.Lerp(stone, dark, 0.4f));
+            t.SetPixel(px + 1, py, Color.Lerp(stone, dark, 0.3f));
+        }
+
+        return t;
+    }
+
+    static Texture2D BuildMinePlatform(int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(16, 16);
+
+        Color plankTop = Hex("#C08B4C");
+        Color plank = Hex("#9A6B36");
+        Color plankDark = Hex("#6E4A22");
+        Color beam = Hex("#5A3A1A");
+        Color bottom = Hex("#33220F");
+        Color bolt = Hex("#B9B4A8");
+
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 16; x++)
+            {
+                Color c;
+                if (y == 15) c = plankTop;
+                else if (y == 14) c = plank;
+                else if (y == 13) c = plankDark;
+                else if (y <= 2) c = Color.Lerp(bottom, beam, y / 2f);
+                else c = Color.Lerp(beam, plankDark, Mathf.Clamp01((y - 2) / 11f));
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        for (int sx = 2; sx < 16; sx += 4)
+        {
+            for (int y = 3; y <= 13; y++) t.SetPixel(sx, y, Color.Lerp(beam, Color.black, 0.2f));
+        }
+
+        int[] bolts = { 2, 7, 13 };
+        for (int i = 0; i < bolts.Length; i++)
+        {
+            t.SetPixel(bolts[i], 11, Hex("#6E6658"));
+            t.SetPixel(bolts[i], 12, bolt);
+        }
+
+        for (int i = 0; i < 4; i++)
+        {
+            int gx = rng.Next(3, 14);
+            int gy = rng.Next(4, 12);
+            t.SetPixel(gx, gy, plankDark);
+        }
+
+        return t;
+    }
+
+    public static Sprite CaveDepthShadeSprite()
+    {
+        return BuildDepthShade("depth_shade_cave", new Color(0.02f, 0.02f, 0.04f));
+    }
+
+    public static Sprite[] CaveSmallSprites()
+    {
+        return new[] { FromTexture("cave_stalagmite", BuildStalagmiteDecor(6401)) };
+    }
+
+    static Texture2D BuildStalagmiteDecor(int seed)
+    {
+        int w = 12;
+        int h = 18;
+        Texture2D t = NewTex(w, h);
+        Color body = Hex("#514A40");
+        Color light = Hex("#6E6557");
+        Color dark = Hex("#332E27");
+
+        for (int y = 0; y <= 15; y++)
+        {
+            float k = y / 15f;
+            int hw = Mathf.RoundToInt(5f * (1f - k));
+            if (hw < 1) hw = 1;
+            for (int dx = -hw; dx <= hw; dx++)
+            {
+                int px = 6 + dx;
+                if (px < 0 || px >= w) continue;
+                Color c = body;
+                if (dx == -hw) c = light;
+                else if (dx == hw) c = dark;
+                t.SetPixel(px, y, c);
+            }
+        }
+
+        return t;
+    }
+
+    public static Sprite[] CaveCrystalSprites()
+    {
+        return new[] { FromTexture("cave_crystal", BuildCrystalCluster(6411)) };
+    }
+
+    static Texture2D BuildCrystalCluster(int seed)
+    {
+        int w = 16;
+        int h = 16;
+        Texture2D t = NewTex(w, h);
+        Color rock = Hex("#3A342C");
+        Color core = Hex("#8CF2FA");
+        Color mid = Hex("#45C8DC");
+        Color dark = Hex("#2A7E96");
+
+        for (int x = 2; x <= 13; x++) t.SetPixel(x, 0, rock);
+        for (int x = 4; x <= 11; x++) t.SetPixel(x, 1, Color.Lerp(rock, Color.black, 0.2f));
+
+        // Central shard.
+        for (int y = 2; y <= 13; y++)
+        {
+            t.SetPixel(8, y, core);
+            t.SetPixel(9, y, mid);
+            t.SetPixel(10, y, dark);
+        }
+        t.SetPixel(8, 14, Color.white);
+
+        // Side shards.
+        for (int y = 2; y <= 9; y++)
+        {
+            t.SetPixel(5, y, mid);
+            t.SetPixel(6, y, dark);
+        }
+        t.SetPixel(5, 10, core);
+
+        for (int y = 2; y <= 11; y++)
+        {
+            t.SetPixel(12, y, mid);
+            t.SetPixel(13, y, dark);
+        }
+        t.SetPixel(12, 12, core);
+
+        // Glow specks around the tips.
+        t.SetPixel(9, 14, Color.Lerp(core, Color.white, 0.5f));
+        t.SetPixel(6, 10, Color.Lerp(core, Color.white, 0.5f));
+        t.SetPixel(13, 12, Color.Lerp(core, Color.white, 0.5f));
+
+        return t;
+    }
+
+    public static Sprite CaveRockSprite()
+    {
+        int w = 12;
+        int h = 8;
+        Texture2D t = NewTex(w, h);
+        Color baseCol = Hex("#5A5145");
+        Color light = Hex("#746A5A");
+        Color dark = Hex("#332E27");
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float nx = (x - 5.5f) / 5.5f;
+                float ny = (y - 3.5f) / 3.5f;
+                if (nx * nx + ny * ny > 1f) continue;
+                Color c = baseCol;
+                if (nx + ny < -0.6f) c = light;
+                else if (nx + ny > 0.7f) c = dark;
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        return FromTexture("cave_rock", t);
+    }
+
+    public static Sprite CavePillarSprite()
+    {
+        int w = 16;
+        int h = 40;
+        Texture2D t = NewTex(w, h);
+        Color body = Hex("#4A4339");
+        Color light = Hex("#6A6153");
+        Color dark = Hex("#2A2620");
+
+        for (int y = 0; y <= 37; y++)
+        {
+            float k = y / 37f;
+            int hw = Mathf.RoundToInt(7f * (1f - k));
+            if (hw < 1) hw = 1;
+            for (int dx = -hw; dx <= hw; dx++)
+            {
+                int px = 8 + dx;
+                if (px < 0 || px >= w) continue;
+                Color c = body;
+                if (dx == -hw) c = light;
+                else if (dx == hw) c = dark;
+                if (y % 6 == 0 && dx > -hw) c = Color.Lerp(c, dark, 0.45f);
+                t.SetPixel(px, y, c);
+            }
+        }
+
+        return Import("cave_pillar", t, true, Ppu);
+    }
+
+    // ------------------------------------------------------------------ factory theme
+
+    public static Sprite FactorySkySprite()
+    {
+        return SkyGradient("factory_sky",
+            Hex("#2E3742"), Hex("#232B35"), Hex("#191F27"), Hex("#0E1116"));
+    }
+
+    // Industrial skyline: stepped block silhouettes with sparse lit windows.
+    public static Sprite FactoryBackdropSprite()
+    {
+        return BuildFactoryBackdrop("factory_backdrop", Hex("#2A323C"), Hex("#1D242C"), Hex("#E8C25A"), 151);
+    }
+
+    static Sprite BuildFactoryBackdrop(string name, Color far, Color near, Color window, int seedBase)
+    {
+        int w = 4096;
+        int h = 128;
+        Texture2D t = NewTex(w, h);
+
+        float[] ridgeFar = new float[w];
+        float[] ridgeNear = new float[w];
+        for (int x = 0; x < w; x++)
+        {
+            float nf = 0.55f * Noise(x, 260f, seedBase) + 0.30f * Noise(x, 90f, seedBase + 1) + 0.15f * Noise(x, 30f, seedBase + 2);
+            ridgeFar[x] = 34f + Mathf.Floor(nf * 5f) / 4f * 70f;
+            float nn = 0.55f * Noise(x, 220f, seedBase + 10) + 0.30f * Noise(x, 80f, seedBase + 11) + 0.15f * Noise(x, 26f, seedBase + 12);
+            ridgeNear[x] = 18f + Mathf.Floor(nn * 4f) / 3f * 54f;
+        }
+
+        for (int x = 0; x < w; x++)
+        {
+            int farTop = Mathf.Clamp(Mathf.RoundToInt(ridgeFar[x]), 0, h - 1);
+            for (int y = 0; y <= farTop; y++)
+            {
+                Color c = Color.Lerp(far, Color.Lerp(far, Color.black, 0.25f), 1f - y / (float)Mathf.Max(1, farTop));
+                t.SetPixel(x, y, c);
+            }
+            if (farTop >= 4) t.SetPixel(x, farTop, Color.Lerp(far, Color.white, 0.12f));
+        }
+
+        for (int x = 0; x < w; x++)
+        {
+            int farTop = Mathf.RoundToInt(ridgeFar[x]);
+            for (int y = 8; y < farTop - 4; y += 8)
+            {
+                if (Hash(x * 13 + y * 29, seedBase) > 0.9955f)
+                {
+                    t.SetPixel(x, y, window);
+                    if (x + 1 < w) t.SetPixel(x + 1, y, window);
+                }
+            }
+        }
+
+        for (int x = 0; x < w; x++)
+        {
+            int nearTop = Mathf.Clamp(Mathf.RoundToInt(ridgeNear[x]), 0, h - 1);
+            for (int y = 0; y <= nearTop; y++)
+            {
+                Color c = Color.Lerp(near, Color.Lerp(near, Color.black, 0.35f), 1f - y / (float)Mathf.Max(1, nearTop));
+                t.SetPixel(x, y, c);
+            }
+            if (nearTop >= 4) t.SetPixel(x, nearTop, Color.Lerp(near, Color.white, 0.10f));
+        }
+
+        return Import(name, t, true, Ppu);
+    }
+
+    // Foreground factory pipes with warning lights.
+    public static Sprite FactoryTreelineSprite()
+    {
+        int w = 4096;
+        int h = 96;
+        Texture2D t = NewTex(w, h);
+        System.Random rng = new System.Random(1521);
+
+        Color pipe = Hex("#2B3037");
+        Color pipeLight = Hex("#454C55");
+        Color dark = Hex("#1A1E24");
+        Color warn = Hex("#E85A3C");
+
+        for (int x = 0; x < w; x++)
+        {
+            for (int y = 16; y <= 19; y++) t.SetPixel(x, y, y == 19 ? pipeLight : pipe);
+        }
+
+        int px = rng.Next(10, 50);
+        while (px < w - 10)
+        {
+            int height = rng.Next(20, 62);
+            int width = rng.Next(3, 6);
+            for (int y = 0; y <= height; y++)
+            {
+                for (int dx = 0; dx < width; dx++)
+                {
+                    Color c = dx == 0 ? pipeLight : (dx == width - 1 ? dark : pipe);
+                    t.SetPixel(px + dx, y, c);
+                }
+            }
+
+            for (int dx = -1; dx <= width; dx++)
+            {
+                int fx = px + dx;
+                if (fx >= 0 && fx < w) t.SetPixel(fx, height + 1, pipeLight);
+            }
+
+            if (rng.NextDouble() < 0.4 && height + 2 < h)
+            {
+                t.SetPixel(px + width / 2, height + 2, warn);
+            }
+
+            px += rng.Next(46, 130);
+        }
+
+        return Import("factory_treeline", t, true, Ppu);
+    }
+
+    public static Sprite[] FactoryGroundTops()
+    {
+        return new[]
+        {
+            FromTexture("factory_ground_top0", BuildFactoryGroundTop(1801)),
+            FromTexture("factory_ground_top1", BuildFactoryGroundTop(1802)),
+            FromTexture("factory_ground_top2", BuildFactoryGroundTop(1803))
+        };
+    }
+
+    public static Sprite[] FactoryFills()
+    {
+        return new[]
+        {
+            FromTexture("factory_fill0", BuildFactoryFill(2801)),
+            FromTexture("factory_fill1", BuildFactoryFill(2802))
+        };
+    }
+
+    public static Sprite FactoryPlatformSprite()
+    {
+        return FromTexture("factory_platform", BuildFactoryPlatform(3801));
+    }
+
+    static Texture2D BuildFactoryGroundTop(int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(16, 16);
+
+        Color steel = Hex("#6E7681");
+        Color steelLight = Hex("#9AA3AE");
+        Color steelDark = Hex("#474E57");
+        Color body = Hex("#3C424A");
+        Color bottom = Hex("#23272C");
+        Color hazard = Hex("#D8B44A");
+        Color hazardDark = Hex("#2A2C30");
+        Color rivet = Hex("#B9C0C8");
+
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 16; x++)
+            {
+                Color c;
+                if (y == 15) c = (x / 2) % 2 == 0 ? hazard : hazardDark;
+                else if (y == 14) c = steelLight;
+                else if (y == 13) c = steel;
+                else if (y <= 2) c = Color.Lerp(bottom, steelDark, y / 2f);
+                else c = Color.Lerp(steelDark, body, Mathf.Clamp01((y - 2) / 11f));
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        for (int sx = 0; sx < 16; sx += 8)
+        {
+            for (int y = 3; y <= 13; y++) t.SetPixel(sx, y, Color.Lerp(body, Color.black, 0.25f));
+        }
+
+        for (int rx = 3; rx < 16; rx += 5)
+        {
+            t.SetPixel(rx, 12, rivet);
+            t.SetPixel(rx, 6, rivet);
+        }
+
+        for (int y = 3; y < 13; y++)
+        {
+            if (rng.NextDouble() < 0.10) t.SetPixel(rng.Next(0, 16), y, Color.Lerp(steelDark, Color.white, 0.15f));
+        }
+
+        return t;
+    }
+
+    static Texture2D BuildFactoryFill(int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(16, 16);
+
+        Color baseCol = Hex("#3C424A");
+        Color dark = Hex("#2A2F35");
+        Color light = Hex("#4A515A");
+        Color rivet = Hex("#8A939D");
+
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 16; x++)
+            {
+                float v = (float)rng.NextDouble();
+                Color c = baseCol;
+                if (v < 0.08f) c = Color.Lerp(c, dark, 0.45f);
+                else if (v > 0.95f) c = Color.Lerp(c, light, 0.40f);
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        // Horizontal plate seam with rivets.
+        int seam = rng.Next(4, 12);
+        for (int x = 0; x < 16; x++) t.SetPixel(x, seam, Color.Lerp(baseCol, Color.black, 0.28f));
+        for (int x = 2; x < 16; x += 5) t.SetPixel(x, seam + 1, rivet);
+
+        // Diagonal scratches.
+        for (int i = 0; i < 2; i++)
+        {
+            int cx = rng.Next(2, 12);
+            int cy = rng.Next(2, 12);
+            for (int step = 0; step < 5; step++)
+            {
+                int x = cx + step;
+                int y = cy + step / 2;
+                if (x < 16 && y < 16) t.SetPixel(x, y, Color.Lerp(light, Color.white, 0.2f));
+            }
+        }
+
+        return t;
+    }
+
+    static Texture2D BuildFactoryPlatform(int seed)
+    {
+        System.Random rng = new System.Random(seed);
+        Texture2D t = NewTex(16, 16);
+
+        Color topLight = Hex("#B9C0C8");
+        Color topMid = Hex("#8A939D");
+        Color topDark = Hex("#5F6772");
+        Color body = Hex("#4A515A");
+        Color bodyDark = Hex("#343A42");
+        Color bottom = Hex("#23272C");
+        Color brace = Hex("#262B32");
+        Color rivet = Hex("#A9B2BC");
+
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 16; x++)
+            {
+                Color c;
+                if (y == 15) c = topLight;
+                else if (y == 14) c = topMid;
+                else if (y == 13) c = topDark;
+                else if (y <= 2) c = Color.Lerp(bottom, bodyDark, y / 2f);
+                else c = Color.Lerp(bodyDark, body, Mathf.Clamp01((y - 2) / 11f));
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        for (int y = 3; y <= 13; y++)
+        {
+            t.SetPixel(0, y, bodyDark);
+            t.SetPixel(15, y, bodyDark);
+        }
+
+        // Cross bracing.
+        for (int i = 0; i < 16; i++)
+        {
+            int y1 = 3 + i / 2;
+            int y2 = 13 - i / 2;
+            if (y1 < 14) t.SetPixel(i, y1, brace);
+            if (y2 > 2) t.SetPixel(i, y2, brace);
+        }
+
+        t.SetPixel(2, 12, rivet);
+        t.SetPixel(13, 12, rivet);
+        t.SetPixel(2, 4, rivet);
+        t.SetPixel(13, 4, rivet);
+
+        return t;
+    }
+
+    public static Sprite FactoryDepthShadeSprite()
+    {
+        return BuildDepthShade("depth_shade_factory", new Color(0.02f, 0.03f, 0.04f));
+    }
+
+    public static Sprite[] FactoryPlateSprites()
+    {
+        return new[] { FromTexture("factory_plate", BuildFactoryPlate(6451)) };
+    }
+
+    static Texture2D BuildFactoryPlate(int seed)
+    {
+        int w = 10;
+        int h = 6;
+        Texture2D t = NewTex(w, h);
+        Color body = Hex("#5A626C");
+        Color light = Hex("#8A939D");
+        Color dark = Hex("#2E333A");
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                Color c = body;
+                if (y == h - 1) c = light;
+                if (x == 0 || y == 0) c = dark;
+                t.SetPixel(x, y, c);
+            }
+        }
+        t.SetPixel(2, 3, light);
+        t.SetPixel(7, 3, light);
+
+        return t;
+    }
+
+    public static Sprite[] FactoryBarrelSprites()
+    {
+        return new[] { FromTexture("factory_barrel", BuildBarrel(6511)) };
+    }
+
+    static Texture2D BuildBarrel(int seed)
+    {
+        int w = 12;
+        int h = 16;
+        Texture2D t = NewTex(w, h);
+        Color body = Hex("#B4462E");
+        Color dark = Hex("#6E2417");
+        Color light = Hex("#D86A4A");
+        Color band = Hex("#3A3F47");
+
+        for (int y = 0; y <= 14; y++)
+        {
+            for (int x = 1; x <= 10; x++)
+            {
+                Color c = body;
+                if (x == 1) c = dark;
+                else if (x == 10) c = light;
+                if (y == 3 || y == 4 || y == 11 || y == 12) c = band;
+                t.SetPixel(x, y, c);
+            }
+        }
+        for (int x = 2; x <= 9; x++) t.SetPixel(x, 15, dark);
+        t.SetPixel(4, 15, Color.Lerp(body, Color.white, 0.2f));
+
+        return t;
+    }
+
+    public static Sprite[] FactoryCrateSprites()
+    {
+        return new[] { FromTexture("factory_crate", BuildCrate(6501)) };
+    }
+
+    static Texture2D BuildCrate(int seed)
+    {
+        int w = 16;
+        int h = 16;
+        Texture2D t = NewTex(w, h);
+        Color body = Hex("#5E6B4A");
+        Color light = Hex("#7B8A61");
+        Color dark = Hex("#2F3626");
+        Color metal = Hex("#8A939D");
+
+        for (int y = 1; y <= 15; y++)
+        {
+            for (int x = 1; x <= 14; x++)
+            {
+                Color c = body;
+                if (y == 15) c = light;
+                else if (y == 1) c = dark;
+                t.SetPixel(x, y, c);
+            }
+        }
+
+        for (int x = 1; x <= 14; x++)
+        {
+            t.SetPixel(x, 1, dark);
+            t.SetPixel(x, 15, light);
+        }
+        for (int y = 1; y <= 15; y++)
+        {
+            t.SetPixel(1, y, Color.Lerp(body, dark, 0.4f));
+            t.SetPixel(14, y, dark);
+        }
+
+        // X brace.
+        for (int i = 2; i <= 13; i++)
+        {
+            t.SetPixel(i, i, Color.Lerp(body, dark, 0.5f));
+            t.SetPixel(i, 16 - i, Color.Lerp(body, dark, 0.5f));
+        }
+
+        t.SetPixel(3, 3, metal);
+        t.SetPixel(12, 12, metal);
+        t.SetPixel(3, 12, metal);
+        t.SetPixel(12, 3, metal);
+
+        return t;
+    }
+
+    public static Sprite FactoryPipeSprite()
+    {
+        int w = 10;
+        int h = 32;
+        Texture2D t = NewTex(w, h);
+        Color body = Hex("#6E7681");
+        Color light = Hex("#9AA3AE");
+        Color dark = Hex("#3A4048");
+        Color flange = Hex("#4A515A");
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 2; x <= 7; x++)
+            {
+                Color c = body;
+                if (x == 2) c = light;
+                else if (x == 7) c = dark;
+                t.SetPixel(x, y, c);
+            }
+            t.SetPixel(1, y, dark);
+            t.SetPixel(8, y, dark);
+        }
+
+        for (int y = 5; y <= 7; y++)
+        {
+            for (int x = 1; x <= 8; x++) t.SetPixel(x, y, flange);
+        }
+        for (int y = 24; y <= 26; y++)
+        {
+            for (int x = 1; x <= 8; x++) t.SetPixel(x, y, flange);
+        }
+
+        t.SetPixel(4, 6, Color.Lerp(flange, Color.white, 0.25f));
+
+        return Import("factory_pipe", t, true, Ppu);
+    }
+
     // ------------------------------------------------------------------ UI
 
     public static Sprite UiCircle(string name, int size, float feather = 2f)
@@ -2099,6 +3034,38 @@ public static class PixelArt
                 enemyTex = FromMapRows(Combine(EnemyUpper, EnemyLegsA), DesertEnemyPalette());
                 playerTex = FromMapRows(Combine(PlayerUpper, PlayerLegsIdle), PlayerPalette());
                 decoTex = BuildDryBush(6302);
+                mesa = true;
+                break;
+
+            case 4:
+                horizon = Hex("#332A22");
+                low = Hex("#241D18");
+                mid = Hex("#171310");
+                top = Hex("#0B0908");
+                hillFar = Hex("#3C332A");
+                hillNear = Hex("#2B241E");
+                groundTile = BuildCaveGroundTop(1602);
+                fillTile = BuildCaveFill(2602);
+                platformTile = BuildMinePlatform(3601);
+                enemyTex = FromMapRows(Combine(EnemyUpper, EnemyLegsA), CaveEnemyPalette());
+                playerTex = FromMapRows(Combine(PlayerUpper, PlayerLegsIdle), PlayerPalette());
+                decoTex = BuildCrystalCluster(6411);
+                mesa = false;
+                break;
+
+            case 5:
+                horizon = Hex("#2E3742");
+                low = Hex("#232B35");
+                mid = Hex("#191F27");
+                top = Hex("#0E1116");
+                hillFar = Hex("#39424D");
+                hillNear = Hex("#252B33");
+                groundTile = BuildFactoryGroundTop(1802);
+                fillTile = BuildFactoryFill(2802);
+                platformTile = BuildFactoryPlatform(3801);
+                enemyTex = FromMapRows(Combine(EnemyUpper, EnemyLegsA), FactoryEnemyPalette());
+                playerTex = FromMapRows(Combine(PlayerUpper, PlayerLegsIdle), PlayerPalette());
+                decoTex = BuildCrate(6502);
                 mesa = true;
                 break;
 

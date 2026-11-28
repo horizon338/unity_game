@@ -11,6 +11,7 @@ public class Snowfall : MonoBehaviour
     public float speedMin = 0.5f;
     public float speedMax = 1.5f;
     public float windX;
+    public Color tint = Color.white;
 
     Transform camTransform;
     Transform[] flakes;
@@ -42,7 +43,7 @@ public class Snowfall : MonoBehaviour
             SpriteRenderer renderer = go.AddComponent<SpriteRenderer>();
             renderer.sprite = flakeSprite;
             renderer.sortingOrder = 30;
-            renderer.color = new Color(1f, 1f, 1f, Random.Range(0.35f, 0.85f));
+            renderer.color = new Color(tint.r, tint.g, tint.b, Random.Range(0.35f, 0.85f));
 
             flakes[i] = go.transform;
             speeds[i] = Random.Range(speedMin, speedMax);
