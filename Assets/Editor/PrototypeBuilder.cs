@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
@@ -22,6 +23,7 @@ public static class PrototypeBuilder
     const string TileDir = "Assets/Art/Tiles";
     const string PrefabDir = "Assets/Prefabs";
     const string DataDir = "Assets/Data";
+    const string BulletEffectDir = "Assets/Art/BulletEffect";
     const string MainMenuPath = "Assets/Scenes/MainMenu.unity";
     const string Stage1Path = "Assets/Scenes/Stage01.unity";
     const string Stage2Path = "Assets/Scenes/Stage02.unity";
@@ -120,6 +122,7 @@ public static class PrototypeBuilder
     {
         try
         {
+            EnsureScriptClasses();
             ConfigureProject();
             BuildScene();
             Debug.Log("[PrototypeBuilder] SetupBatch finished");
@@ -209,7 +212,7 @@ public static class PrototypeBuilder
         Shared shared = new Shared
         {
             playerFrames = PixelArt.PlayerFrames(),
-            bulletPrefab = CreateBulletPrefab(PixelArt.BulletSprite()),
+            bulletPrefab = CreateBulletPrefab(PixelArt.BulletSprite(), LoadBulletEffectFrames()),
             enemyBulletPrefab = CreateEnemyBulletPrefab(PixelArt.EnemyBulletSprite()),
             weapon = CreateWeapon(),
             enemyBarSprite = PixelArt.SolidSprite("enemy_bar", Color.white),
@@ -910,6 +913,10 @@ public static class PrototypeBuilder
         new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
         new GameObject("GameSetup", typeof(FrameRateSetup), typeof(PhysicsSetup));
 
+        int missing = 0;
+        foreach (GameObject root in scene.GetRootGameObjects()) missing += InspectGameObject(root, spec.scenePath);
+        if (missing > 0) throw new Exception("Missing scripts in " + spec.scenePath + ": " + missing);
+
         EditorSceneManager.SaveScene(scene, spec.scenePath);
         AssetDatabase.SaveAssets();
         Debug.Log("[PrototypeBuilder] built " + spec.scenePath);
@@ -917,6 +924,9 @@ public static class PrototypeBuilder
 
     static void BuildApk(bool development, string relativePath)
     {
+        // Stale MonoScript imports would bake scenes with unbound components into the player.
+        EnsureScriptClasses();
+
         EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
 
         string outputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", relativePath));
@@ -1206,6 +1216,55 @@ public static class PrototypeBuilder
         return go;
     }
 
+    static readonly string[] ComponentScripts =
+    {
+        "Assets/Scripts/Core/CameraFollow2D.cs",
+        "Assets/Scripts/Core/FpsCounter.cs",
+        "Assets/Scripts/Core/FrameRateSetup.cs",
+        "Assets/Scripts/Core/LevelGoal.cs",
+        "Assets/Scripts/Core/PhysicsSetup.cs",
+        "Assets/Scripts/Combat/Bullet.cs",
+        "Assets/Scripts/Combat/Enemy.cs",
+        "Assets/Scripts/Combat/EnemyBullet.cs",
+        "Assets/Scripts/Combat/Gun.cs",
+        "Assets/Scripts/Combat/MuzzleFlash.cs",
+        "Assets/Scripts/Combat/SpriteAnimator.cs",
+        "Assets/Scripts/Combat/SpriteBurst.cs",
+        "Assets/Scripts/Player/CharacterAnimator.cs",
+        "Assets/Scripts/Player/PlayerController.cs",
+        "Assets/Scripts/UI/DpSize.cs",
+        "Assets/Scripts/UI/LevelSelectUI.cs",
+        "Assets/Scripts/UI/MainMenuUI.cs",
+        "Assets/Scripts/UI/OnScreenAutoFireToggle.cs",
+        "Assets/Scripts/UI/OnScreenButton.cs",
+        "Assets/Scripts/UI/OnScreenStick.cs",
+        "Assets/Scripts/UI/PauseMenuUI.cs",
+        "Assets/Scripts/UI/PlayerHealthBar.cs",
+        "Assets/Scripts/UI/SafeAreaFitter.cs",
+        "Assets/Scripts/World/ParallaxLayer.cs",
+        "Assets/Scripts/World/Snowfall.cs"
+    };
+
+    // Unity can keep a stale MonoScript import whose GetClass() is null even though the type is in
+    // the assembly. AddComponent then serialises an unbound component, which breaks the scene in
+    // the player. Force-reimport any script in that state before building scenes or the APK.
+    static void EnsureScriptClasses()
+    {
+        foreach (string path in ComponentScripts)
+        {
+            MonoScript script = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
+            if (script == null || script.GetClass() != null) continue;
+
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            script = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
+            if (script == null || script.GetClass() == null)
+            {
+                throw new Exception("MonoScript class did not resolve after reimport: " + path);
+            }
+            Debug.Log("[PrototypeBuilder] reimported stale script: " + path);
+        }
+    }
+
     static Font LoadCjkFont()
     {
         const string path = "Assets/Fonts/NotoSansSC.otf";
@@ -1492,6 +1551,10 @@ public static class PrototypeBuilder
             new Vector2(0f, -460f), new Vector2(800f, 50f));
 
         new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+
+        int missing = 0;
+        foreach (GameObject root in scene.GetRootGameObjects()) missing += InspectGameObject(root, MainMenuPath);
+        if (missing > 0) throw new Exception("Missing scripts in " + MainMenuPath + ": " + missing);
 
         EditorSceneManager.SaveScene(scene, MainMenuPath);
         AssetDatabase.SaveAssets();
@@ -1810,11 +1873,56 @@ public static class PrototypeBuilder
         return false;
     }
 
-    static Bullet CreateBulletPrefab(Sprite sprite)
+    // The player bullet uses the first bullet animation from Assets/Art/BulletEffect (numbered
+    // PNG frames exported from the supplied GIF). Returns null when no frames are present.
+    static Sprite[] LoadBulletEffectFrames()
+    {
+        string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { BulletEffectDir });
+        if (guids.Length == 0) return null;
+
+        List<string> paths = new List<string>();
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) paths.Add(path);
+        }
+        if (paths.Count == 0) return null;
+        paths.Sort(StringComparer.Ordinal);
+
+        Sprite[] frames = new Sprite[paths.Count];
+        for (int i = 0; i < paths.Count; i++)
+        {
+            TextureImporter importer = (TextureImporter)AssetImporter.GetAtPath(paths[i]);
+            if (importer != null)
+            {
+                importer.textureType = TextureImporterType.Sprite;
+                importer.spriteImportMode = SpriteImportMode.Single;
+                importer.spritePixelsPerUnit = 128f;
+                importer.filterMode = FilterMode.Bilinear;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.mipmapEnabled = false;
+                importer.alphaIsTransparency = true;
+
+                // Pivot sits on the bullet head so the glow trails behind the hit point.
+                TextureImporterSettings settings = new TextureImporterSettings();
+                importer.ReadTextureSettings(settings);
+                settings.spriteAlignment = (int)SpriteAlignment.Custom;
+                settings.spritePivot = new Vector2(0.73f, 0.5f);
+                importer.SetTextureSettings(settings);
+                importer.SaveAndReimport();
+            }
+
+            frames[i] = AssetDatabase.LoadAssetAtPath<Sprite>(paths[i]);
+        }
+
+        return frames;
+    }
+
+    static Bullet CreateBulletPrefab(Sprite sprite, Sprite[] frames)
     {
         GameObject go = new GameObject("Bullet");
         SpriteRenderer renderer = go.AddComponent<SpriteRenderer>();
-        renderer.sprite = sprite;
+        renderer.sprite = frames != null && frames.Length > 0 ? frames[0] : sprite;
         renderer.sortingOrder = 11;
         Rigidbody2D body = go.AddComponent<Rigidbody2D>();
         body.gravityScale = 0f;
@@ -1824,6 +1932,13 @@ public static class PrototypeBuilder
         collider.size = new Vector2(0.375f, 0.1875f);
         collider.isTrigger = true;
         go.AddComponent<Bullet>();
+
+        if (frames != null && frames.Length > 1)
+        {
+            SpriteAnimator animator = go.AddComponent<SpriteAnimator>();
+            animator.frames = frames;
+            animator.fps = 25f;
+        }
 
         string path = PrefabDir + "/Bullet.prefab";
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
@@ -1868,6 +1983,119 @@ public static class PrototypeBuilder
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
         UnityEngine.Object.DestroyImmediate(go);
         return prefab.GetComponent<SpriteBurst>();
+    }
+
+    // Read-only diagnostic: open every scene and report components with a missing script.
+    public static void InspectBatch()
+    {
+        try
+        {
+            CheckMonoScript("Assets/Scripts/Player/PlayerController.cs");
+            CheckMonoScript("Assets/Scripts/UI/OnScreenButton.cs");
+            CheckMonoScript("Assets/Scripts/UI/DpSize.cs");
+            CheckMonoScript("Assets/Scripts/Player/CharacterAnimator.cs");
+            CheckMonoScript("Assets/Scripts/Combat/Gun.cs");
+
+            InspectScene(MainMenuPath);
+            InspectScene(Stage1Path);
+            InspectScene(Stage2Path);
+            InspectScene(Stage3Path);
+            InspectScene(Stage4Path);
+            InspectScene(Stage5Path);
+            Debug.Log("[Inspect] done");
+            EditorApplication.Exit(0);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("[Inspect] failed: " + e);
+            EditorApplication.Exit(1);
+        }
+    }
+
+    static void CheckMonoScript(string path)
+    {
+        MonoScript script = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
+        System.Type type = script != null ? script.GetClass() : null;
+        Debug.Log("[Script] " + path
+            + " asset=" + (script != null)
+            + " class=" + (type != null ? type.FullName : "NULL")
+            + " guid=" + AssetDatabase.AssetPathToGUID(path));
+    }
+
+    static void CheckType(string name)
+    {
+        foreach (System.Reflection.Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            System.Type[] types;
+            try
+            {
+                types = asm.GetTypes();
+            }
+            catch (System.Reflection.ReflectionTypeLoadException e)
+            {
+                types = e.Types;
+            }
+
+            foreach (System.Type type in types)
+            {
+                if (type != null && type.Name == name)
+                    Debug.Log("[Type] " + type.FullName + " asm=" + asm.GetName().Name);
+            }
+        }
+    }
+
+    // Diagnostic + repair: force-reimport the scripts whose MonoScript classes fail to resolve.
+    public static void RepairBatch()
+    {
+        try
+        {
+            CheckType("PlayerController");
+            CheckType("OnScreenButton");
+
+            AssetDatabase.ImportAsset("Assets/Scripts/Player/PlayerController.cs", ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset("Assets/Scripts/UI/OnScreenButton.cs", ImportAssetOptions.ForceUpdate);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+
+            CheckMonoScript("Assets/Scripts/Player/PlayerController.cs");
+            CheckMonoScript("Assets/Scripts/UI/OnScreenButton.cs");
+            Debug.Log("[Repair] done");
+            EditorApplication.Exit(0);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("[Repair] failed: " + e);
+            EditorApplication.Exit(1);
+        }
+    }
+
+    static void InspectScene(string path)
+    {
+        EditorSceneManager.OpenScene(path);
+        int missing = 0;
+        foreach (GameObject root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+        {
+            missing += InspectGameObject(root, path);
+        }
+        Debug.Log("[Inspect] " + path + " missing=" + missing);
+    }
+
+    static int InspectGameObject(GameObject go, string scenePath)
+    {
+        int missing = 0;
+        Component[] comps = go.GetComponents<Component>();
+        for (int i = 0; i < comps.Length; i++)
+        {
+            if (comps[i] == null)
+            {
+                missing++;
+                Debug.LogWarning("[Inspect] missing script on '" + go.name + "' component#" + i + " in " + scenePath);
+            }
+        }
+        foreach (Transform child in go.transform)
+        {
+            missing += InspectGameObject(child.gameObject, scenePath);
+        }
+        return missing;
     }
 
     // Read-only diagnostic: open both stages and report tilemap, sprite and goal wiring.
